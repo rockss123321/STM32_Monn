@@ -195,7 +195,7 @@ int fs_open_custom(struct fs_file *file, const char *name)
 
   /* /login.cgi обрабатывается через CGI handler в main.c */
   if (!strncmp(name, "/login.cgi", 10)) {
-    return 0;
+    return 0; /* для GET-логина параметры парсит CGI */
   }
 
   /* Logout */

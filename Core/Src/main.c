@@ -144,12 +144,14 @@ uint8_t new_dhcp_enabled = 0;
 uint8_t apply_network_settings = 0;  // флаг применения
 
 
-// Прототип CGI-функции
+// Прототипы CGI-функций
 const char * NET_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], char *pcValue[]);
+const char * LOGIN_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], char *pcValue[]);
 
 // Таблица CGI
 const tCGI NET_CGI = {"/set_network.cgi", NET_CGI_Handler};
-tCGI CGI_TAB[5];
+const tCGI LOGIN_CGI = {"/login.cgi", LOGIN_CGI_Handler};
+tCGI CGI_TAB[6];
 
 const char* NET_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], char *pcValue[])
 {
@@ -334,9 +336,6 @@ typedef struct {
 
 FW_Update_Context fw_ctx;
 static bool fw_request_active = false;   // текущий POST = fw_update?
-static bool login_request_active = false; // текущий POST = login?
-static char login_buf[128];
-static uint16_t login_buf_len = 0;
 // --- Helpers for Flash OTA ---
 static uint32_t Flash_GetSector(uint32_t Address)
 {
@@ -463,6 +462,25 @@ const char* FW_Update_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], c
 
 const tCGI FW_UPDATE_CGI = {"/fw_update.cgi", FW_Update_CGI_Handler};
 
+// GET-логин через CGI-параметры user/pass
+const char* LOGIN_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], char *pcValue[])
+{
+    char user[32] = {0};
+    char pass[32] = {0};
+    for (int i = 0; i < iNumParams; i++) {
+        if (strcmp(pcParam[i], "user") == 0 && pcValue[i] && pcValue[i][0]) {
+            strncpy(user, pcValue[i], sizeof(user) - 1);
+        } else if (strcmp(pcParam[i], "pass") == 0 && pcValue[i] && pcValue[i][0]) {
+            strncpy(pass, pcValue[i], sizeof(pass) - 1);
+        }
+    }
+    url_decode(user, user);
+    url_decode(pass, pass);
+    extern volatile uint8_t g_is_authenticated;
+    g_is_authenticated = (user[0] && pass[0] && Creds_CheckLogin(user, pass)) ? 1 : 0;
+    return g_is_authenticated ? "/index.html" : "/login_failed.html";
+}
+
 void url_decode(char *dst, const char *src)
 {
     char a, b;
@@ -503,21 +521,7 @@ err_t httpd_post_begin(void *connection,
 {
     // Сброс признаков по умолчанию
     fw_request_active = false;
-    login_request_active = false;
 
-    // Обработка логина: проверяем креды при POST /login.cgi
-    if(strcmp(uri, "/login.cgi") == 0) {
-        login_request_active = true;
-        login_buf_len = 0;
-        if (post_data && post_data_len > 0) {
-            uint16_t max_copy = (uint16_t)(sizeof(login_buf) - 1);
-            uint16_t copy = (post_data_len > max_copy) ? max_copy : post_data_len;
-            memcpy(login_buf, post_data, copy);
-            login_buf_len = copy;
-        }
-        *connection_status = 1;
-        return ERR_OK;
-    }
     if(strcmp(uri, "/fw_update.cgi") == 0) {
         fw_request_active = true;
         FW_ResetContext();
@@ -541,18 +545,6 @@ err_t httpd_post_receive_data(void *connection, struct pbuf *p)
 {
     if (p == NULL) return ERR_OK;
 
-    if (login_request_active) {
-        struct pbuf *q = p;
-        while (q && login_buf_len < sizeof(login_buf)) {
-            uint16_t room = sizeof(login_buf) - login_buf_len;
-            uint16_t to_copy = (q->len > room) ? room : q->len;
-            memcpy(login_buf + login_buf_len, q->payload, to_copy);
-            login_buf_len += to_copy;
-            q = q->next;
-        }
-        return ERR_OK;
-    }
-
     if (fw_ctx.active) {
         struct pbuf *q = p;
         while(q) {
@@ -570,59 +562,6 @@ err_t httpd_post_receive_data(void *connection, struct pbuf *p)
 
 void httpd_post_finished(void *connection, char *response_uri, u16_t response_uri_len)
 {
-    // Если это был login — перенаправим по результату авторизации
-    if (login_request_active) {
-        if (response_uri && response_uri_len) {
-            // Разобрать накопленный буфер
-            char user[32]={0}, pass[32]={0};
-            // Гарантируем нуль-терминацию перед использованием strstr()
-            size_t term_pos = (login_buf_len < sizeof(login_buf) - 1) ? login_buf_len : (sizeof(login_buf) - 1);
-            login_buf[term_pos] = '\0';
-            if (login_buf_len > 0) {
-                const char *u = strstr(login_buf, "user=");
-                const char *p = strstr(login_buf, "pass=");
-                if (u) {
-                    u += 5;
-                    size_t n=0; while (u[n] && u[n] != '&' && n < sizeof(user)-1) { user[n]=u[n]; n++; }
-                    user[n]=0;
-                }
-                if (p) {
-                    p += 5;
-                    size_t n=0; while (p[n] && p[n] != '&' && n < sizeof(pass)-1) { pass[n]=p[n]; n++; }
-                    pass[n]=0;
-                }
-            }
-            url_decode(user, user);
-            url_decode(pass, pass);
-
-
-            extern volatile uint8_t g_is_authenticated;
-            g_is_authenticated = (user[0] && pass[0] && Creds_CheckLogin(user, pass)) ? 1 : 0;
-            if (g_is_authenticated) {
-                const char *target = "/index.html";
-                size_t n = strlen(target);
-                if (response_uri_len > 0) {
-                    if (n >= response_uri_len) n = response_uri_len - 1;
-                    memcpy(response_uri, target, n);
-                    response_uri[n] = '\0';
-                }
-            } else {
-                const char *target = "/login_failed.html";
-                size_t n = strlen(target);
-                if (response_uri_len > 0) {
-                    if (n >= response_uri_len) n = response_uri_len - 1;
-                    memcpy(response_uri, target, n);
-                    response_uri[n] = '\0';
-                }
-            }
-
-                    }
-        // сброс буфера и флага
-        login_buf_len = 0;
-        login_request_active = false;
-        return;
-    }
-
     // Если это был fw_update — завершим запись и отдадим соответствующую страницу
     if (fw_request_active) {
         // Завершаем запись: дописываем неполное слово, если нужно
@@ -735,7 +674,8 @@ int main(void)
   CGI_TAB[2] = TIME_CGI;
   CGI_TAB[3] = SNMP_CGI;
   CGI_TAB[4] = FW_UPDATE_CGI;
-  http_set_cgi_handlers(CGI_TAB, 5); // количество зарегистрированных CGI
+  CGI_TAB[5] = LOGIN_CGI;
+  http_set_cgi_handlers(CGI_TAB, 6); // количество зарегистрированных CGI
   snmp_init();
 
   snmp_set_mibs(mib_array, snmp_num_mibs);
