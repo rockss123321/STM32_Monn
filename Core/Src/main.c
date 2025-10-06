@@ -170,6 +170,7 @@ const char* NET_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], char *p
 #include "lwip/ip_addr.h"
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 
 
@@ -570,6 +571,11 @@ void httpd_post_finished(void *connection, char *response_uri, u16_t response_ur
 {
     // Если это был login — перенаправим по результату авторизации
     if (login_request_active) {
+        // Гарантируем NUL-терминацию буфера перед разбором
+        if (login_buf_len >= sizeof(login_buf)) {
+            login_buf_len = sizeof(login_buf) - 1;
+        }
+        login_buf[login_buf_len] = '\0';
         if (response_uri && response_uri_len) {
             // Разобрать накопленный буфер
             char user[32]={0}, pass[32]={0};
