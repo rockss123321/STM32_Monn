@@ -9,4 +9,4 @@
 ../LWIP/Target/ethernetif.c:578:7:sys_now	1
 ../LWIP/Target/ethernetif.c:594:6:ethernetif_set_link	6
 ../LWIP/Target/ethernetif.c:632:6:ethernetif_update_config	7
-../LWIP/Target/ethernetif.c:720:13:ethernetif_notify_conn_changed	1
+../LWIP/Target/ethernetif.c:723:13:ethernetif_notify_conn_changed	1

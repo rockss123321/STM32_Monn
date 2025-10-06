@@ -1,0 +1,255 @@
+   :root {
+     --accent: #ff9900;
+     --accent-dark: #e68a00;
+     --bg: #1c1c1c;
+     --panel: #111;
+     --panel-2: #2c2c2c;
+     --muted: #ccc;
+     --white: #ffffff;
+     --black: #000000;
+   }
+
+   body {
+     margin: 0;
+     font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+     background: var(--bg);
+     color: var(--white);
+     display: flex;
+     min-height: 100vh;
+   }
+
+   nav {
+     width: 200px;
+     background: var(--panel);
+     padding-top: 20px;
+     box-shadow: 2px 0 6px rgba(0, 0, 0, 0.6);
+     display: flex;
+     flex-direction: column;
+   }
+
+   nav a {
+     color: var(--white);
+     text-decoration: none;
+     padding: 14px 18px;
+     font-size: 15px;
+     border-left: 4px solid transparent;
+     margin-bottom: 6px;
+     transition: background .12s, border-color .12s;
+     word-break: break-word;
+   }
+
+   nav a:hover {
+     background: #222;
+     border-left-color: var(--accent);
+   }
+
+   nav a.active {
+     background: #222;
+     border-left-color: var(--accent);
+   }
+
+   main {
+     flex: 1;
+     padding: 28px;
+   }
+
+   .header {
+     font-size: 22px;
+     color: var(--accent);
+     font-weight: 700;
+     margin-bottom: 18px;
+   }
+
+   .card {
+     background: var(--panel-2);
+     border-radius: 12px;
+     padding: 22px;
+     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+     max-width: 720px;
+     margin-bottom: 20px;
+   }
+
+   label {
+     display: block;
+     font-weight: 600;
+     margin-bottom: 6px;
+     color: var(--muted);
+   }
+
+   .input {
+     width: 320px;
+     padding: 10px 12px;
+     border-radius: 6px;
+     border: 0;
+     background: #232323;
+     color: var(--white);
+     font-size: 15px;
+     margin-bottom: 14px;
+   }
+
+   .btn {
+     background: var(--accent);
+     color: var(--black);
+     padding: 10px 18px;
+     border-radius: 10px;
+     border: 0;
+     font-weight: 700;
+     cursor: pointer;
+   }
+
+   .btn:hover {
+     background: var(--accent-dark);
+   }
+
+   .status {
+     margin-top: 12px;
+     color: var(--muted);
+     min-height: 20px;
+   }
+
+   .small {
+     margin-top: 8px;
+     color: #9f9f9f;
+     font-size: 13px;
+   }
+
+   .tabs {
+     display: flex;
+     margin-bottom: 20px;
+   }
+
+   .tab {
+     padding: 10px 20px;
+     cursor: pointer;
+     border-bottom: 2px solid transparent;
+     margin-right: 10px;
+     font-weight: 600;
+   }
+
+   .tab.active {
+     border-bottom: 2px solid var(--accent);
+     color: var(--accent);
+   }
+
+   .tab-content {
+     display: none;
+   }
+
+   .tab-content.active {
+     display: block;
+   }
+
+   nav a:hover {
+     background-color: #333;
+     border-left: 4px solid #ff9900;
+   }
+
+   nav a.active {
+     background-color: #222;
+     border-left: 4px solid #ff9900;
+   }
+
+   main {
+     flex: 1;
+     padding: 20px 30px;
+   }
+
+   header {
+     font-size: 24px;
+     font-weight: bold;
+     margin-bottom: 20px;
+     color: #ff9900;
+     display: flex;
+     justify-content: space-between;
+     align-items: center;
+   }
+
+   section {
+     margin-top: 20px;
+   }
+
+   form {
+     background-color: #2c2c2c;
+     padding: 20px;
+     border-radius: 12px;
+   }
+
+   input[type=file] {
+     margin-bottom: 15px;
+     font-size: 16px;
+   }
+
+   input[type=submit] {
+     background-color: #ff9900;
+     border: none;
+     padding: 10px 20px;
+     font-size: 16px;
+     border-radius: 8px;
+     cursor: pointer;
+   }
+
+   input[type=submit]:hover {
+     background-color: #e68a00;
+   }
+
+   table {
+     width: 100%;
+     border-collapse: separate;
+     border-spacing: 0;
+     font-size: 18px;
+     background-color: #2c2c2c;
+     border-radius: 12px;
+     overflow: hidden;
+   }
+
+   th,
+   td {
+     padding: 12px 16px;
+     text-align: left;
+     border-bottom: 1px solid #444;
+   }
+
+   th {
+     background-color: #333;
+     font-weight: 600;
+     color: #ff9900;
+   }
+
+   tr:last-child td {
+     border-bottom: none;
+   }
+
+   .ok {
+     background-color: #ff9900;
+     color: #000;
+   }
+
+   .warning {
+     background-color: #555;
+     color: #fff;
+   }
+
+   .error {
+     background-color: #000;
+     color: #fff;
+   }
+
+   /* Подсветка строк для журнала */
+   .ok {
+     background-color: #ff9900;
+     color: #000;
+   }
+
+   /* оранжевый */
+   .warning {
+     background-color: #555;
+     color: #fff;
+   }
+
+   /* серый */
+   .error {
+     background-color: #000;
+     color: #fff;
+   }
+
+   /* черный */

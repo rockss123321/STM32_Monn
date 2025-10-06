@@ -45,7 +45,8 @@ Middlewares/Third_Party/LwIP/src/apps/httpd/fs.o: \
  ../Middlewares/Third_Party/LwIP/src/include/lwip/err.h \
  ../Middlewares/Third_Party/LwIP/src/apps/httpd/fsdata.h \
  ../Middlewares/Third_Party/LwIP/src/apps/httpd/fsdata.c \
- ../Middlewares/Third_Party/LwIP/src/include/lwip/apps/fs.h
+ ../Middlewares/Third_Party/LwIP/src/include/lwip/apps/fs.h \
+ ../Core/Inc/credentials.h
 ../Middlewares/Third_Party/LwIP/src/include/lwip/apps/httpd_opts.h:
 ../Middlewares/Third_Party/LwIP/src/include/lwip/opt.h:
 ../LWIP/Target/lwipopts.h:
@@ -93,3 +94,4 @@ Middlewares/Third_Party/LwIP/src/apps/httpd/fs.o: \
 ../Middlewares/Third_Party/LwIP/src/apps/httpd/fsdata.h:
 ../Middlewares/Third_Party/LwIP/src/apps/httpd/fsdata.c:
 ../Middlewares/Third_Party/LwIP/src/include/lwip/apps/fs.h:
+../Core/Inc/credentials.h:
