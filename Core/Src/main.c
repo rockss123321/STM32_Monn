@@ -44,6 +44,7 @@
 #include "credentials.h"
 #include "buttons/buttons.h"
 #include "settings_storage.h"
+#include <ctype.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -509,7 +510,8 @@ err_t httpd_post_begin(void *connection,
         login_request_active = true;
         login_buf_len = 0;
         if (post_data && post_data_len > 0) {
-            uint16_t copy = (post_data_len > sizeof(login_buf)) ? sizeof(login_buf) : post_data_len;
+            uint16_t max_copy = (uint16_t)(sizeof(login_buf) - 1);
+            uint16_t copy = (post_data_len > max_copy) ? max_copy : post_data_len;
             memcpy(login_buf, post_data, copy);
             login_buf_len = copy;
         }
@@ -573,6 +575,9 @@ void httpd_post_finished(void *connection, char *response_uri, u16_t response_ur
         if (response_uri && response_uri_len) {
             // Разобрать накопленный буфер
             char user[32]={0}, pass[32]={0};
+            // Гарантируем нуль-терминацию перед использованием strstr()
+            size_t term_pos = (login_buf_len < sizeof(login_buf) - 1) ? login_buf_len : (sizeof(login_buf) - 1);
+            login_buf[term_pos] = '\0';
             if (login_buf_len > 0) {
                 const char *u = strstr(login_buf, "user=");
                 const char *p = strstr(login_buf, "pass=");
