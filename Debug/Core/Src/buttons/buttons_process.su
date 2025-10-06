@@ -1,0 +1,3 @@
+../Drivers/CMSIS/Include/core_cm3.h:1762:34:__NVIC_SystemReset	4	static,ignoring_inline_asm
+../Core/Src/buttons/buttons_process.c:24:6:OLED_ShowCurrentPage	8	static
+../Core/Src/buttons/buttons_process.c:43:6:Buttons_Process	40	static

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bonch-ATS Monitoring</title>
+<style>
+    body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        margin: 0;
+        background-color: #1c1c1c;
+        color: #fff;
+        display: flex;
+    }
+    nav {
+        width: 200px;
+        background-color: #111;
+        display: flex;
+        flex-direction: column;
+        padding-top: 20px;
+        box-shadow: 2px 0 5px rgba(0,0,0,0.5);
+    }
+    nav a {
+        padding: 15px 20px;
+        color: #fff;
+        text-decoration: none;
+        font-size: 16px;
+        margin-bottom: 5px;
+        border-left: 4px solid transparent;
+        transition: all 0.2s;
+    }
+    nav a:hover {
+        background-color: #333;
+        border-left: 4px solid #ff9900;
+    }
+    nav a.active {
+        background-color: #222;
+        border-left: 4px solid #ff9900;
+    }
+    main {
+        flex: 1;
+        padding: 20px 30px;
+    }
+    header {
+        font-size: 24px;
+        font-weight: bold;
+        margin-bottom: 20px;
+        color: #ff9900;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    section {
+        margin-top: 20px;
+    }
+    form {
+        background-color: #2c2c2c;
+        padding: 20px;
+        border-radius: 12px;
+    }
+    input[type=file] {
+        margin-bottom: 15px;
+        font-size: 16px;
+    }
+    input[type=submit] {
+        background-color: #ff9900;
+        border: none;
+        padding: 10px 20px;
+        font-size: 16px;
+        border-radius: 8px;
+        cursor: pointer;
+    }
+    input[type=submit]:hover {
+        background-color: #e68a00;
+    }
+</style>
+</head>
+<body>
+    <nav>
+        <a href="index.html">Главная</a>
+        <a href="event.html">Журнал</a>
+        <a href="settings.html">Настройки</a>
+        <a href="update.html" class="active">Обновление ПО</a>
+    </nav>
+
+    <main>
+        <header>
+            Bonch-ATS Monitoring
+            <span id="datetime"><!--#datetime--></span>
+        </header>
+
+        <section>
+            <h2>Загрузка новой прошивки</h2>
+            <form action="/fw_update.cgi" method="post" enctype="multipart/form-data">
+                <input type="file" name="firmware" accept=".bin" required><br>
+                <input type="submit" value="Загрузить и обновить">
+            </form>
+            <p id="status"></p>
+        </section>
+    </main>
+
+<script>
+document.querySelector("form").onsubmit = () => {
+    document.getElementById("status").innerText = "Загрузка прошивки...";
+};
+</script>
+</body>
+</html>

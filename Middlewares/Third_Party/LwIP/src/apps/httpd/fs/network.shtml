@@ -1,0 +1,18 @@
+<table>
+  <tr>
+    <th>Параметр</th>
+    <th>Значение</th>
+  </tr>
+  <tr>
+    <td>IP-адрес</td>
+    <td><span id="ip"><!--#ip--></span></td>
+  </tr>
+  <tr>
+    <td>Маска сети</td>
+    <td><span id="mask"><!--#mask--></span></td>
+  </tr>
+  <tr>
+    <td>Шлюз (Gateway)</td>
+    <td><span id="gw"><!--#gateway--></span></td>
+  </tr>
+</table>

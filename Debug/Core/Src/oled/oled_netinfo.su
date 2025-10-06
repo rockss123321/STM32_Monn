@@ -1,0 +1,2 @@
+../Core/Src/oled/oled_netinfo.c:20:6:OLED_DrawIP_Split	48	static
+../Core/Src/oled/oled_netinfo.c:50:6:OLED_DrawNetInfo	96	static

@@ -1,0 +1,5 @@
+../Core/Src/snmp/custom_mib.c:10:14:custom_get_value	16	static
+../Core/Src/snmp/custom_mib.c:15:14:custom_get_var1	16	static
+../Core/Src/snmp/custom_mib.c:20:14:custom_get_var2	16	static
+../Core/Src/snmp/custom_mib.c:25:14:custom_get_var3	16	static
+../Core/Src/snmp/custom_mib.c:30:14:custom_get_var4	16	static

@@ -1,0 +1,17 @@
+../Drivers/CMSIS/Include/core_cm3.h:1762:34:__NVIC_SystemReset	1
+../Core/Src/oled/oled_settings.c:69:6:OLED_Settings_Init	1
+../Core/Src/oled/oled_settings.c:80:13:OLED_Draw_Confirm	2
+../Core/Src/oled/oled_settings.c:131:6:Apply_Network_Settings	1
+../Core/Src/oled/oled_settings.c:150:13:DHCP_Apply	2
+../Core/Src/oled/oled_settings.c:168:13:OLED_Confirm	4
+../Core/Src/oled/oled_settings.c:197:6:OLED_Settings_Draw	5
+../Core/Src/oled/oled_settings.c:236:13:OLED_Draw_Edit	5
+../Core/Src/oled/oled_settings.c:290:13:update_activity_time	1
+../Core/Src/oled/oled_settings.c:296:13:change_edit_value	4
+../Core/Src/oled/oled_settings.c:325:6:OLED_Settings_MoveUp	5
+../Core/Src/oled/oled_settings.c:351:6:OLED_Settings_MoveDown	5
+../Core/Src/oled/oled_settings.c:377:6:OLED_Settings_Select	17
+../Core/Src/oled/oled_settings.c:480:6:OLED_Settings_Exit	1
+../Core/Src/oled/oled_settings.c:488:6:OLED_Settings_TimeoutCheck	5
+../Core/Src/oled/oled_settings.c:501:6:OLED_Settings_ButtonHeld	2
+../Core/Src/oled/oled_settings.c:507:6:OLED_UpdateDisplay	5

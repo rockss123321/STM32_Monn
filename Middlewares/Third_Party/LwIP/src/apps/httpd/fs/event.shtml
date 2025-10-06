@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Журнал событий</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <h2>Журнал событий</h2>
+  <table>
+    <tr>
+      <th>№</th>
+      <th>Дата/время</th>
+      <th>Код события</th>
+    </tr>
+    <!--#events-->
+  </table>
+</body>
+</html>

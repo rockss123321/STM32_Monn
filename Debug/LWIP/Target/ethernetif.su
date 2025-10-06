@@ -1,0 +1,12 @@
+../LWIP/Target/ethernetif.c:84:6:HAL_ETH_MspInit	64	static
+../LWIP/Target/ethernetif.c:136:6:HAL_ETH_MspDeInit	16	static
+../LWIP/Target/ethernetif.c:183:13:low_level_init	32	static
+../LWIP/Target/ethernetif.c:292:14:low_level_output	48	static
+../LWIP/Target/ethernetif.c:376:22:low_level_input	56	static
+../LWIP/Target/ethernetif.c:465:6:ethernetif_input	24	static
+../LWIP/Target/ethernetif.c:520:7:ethernetif_init	16	static
+../LWIP/Target/ethernetif.c:567:7:sys_jiffies	8	static
+../LWIP/Target/ethernetif.c:578:7:sys_now	8	static
+../LWIP/Target/ethernetif.c:594:6:ethernetif_set_link	24	static
+../LWIP/Target/ethernetif.c:632:6:ethernetif_update_config	24	static
+../LWIP/Target/ethernetif.c:720:13:ethernetif_notify_conn_changed	16	static

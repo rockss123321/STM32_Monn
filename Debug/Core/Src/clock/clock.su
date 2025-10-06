@@ -1,0 +1,2 @@
+../Core/Src/clock/clock.c:3:6:Clock_GetTime	40	static
+../Core/Src/clock/clock.c:16:6:Clock_GetDate	32	static

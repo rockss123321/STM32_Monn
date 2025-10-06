@@ -1,0 +1,40 @@
+<table>
+    <tr>
+        <th>Параметр</th>
+        <th>Значение</th>
+    </tr>
+    <tr>
+        <td>Напряжение ввод А</td>
+        <td id="v1"><!--#voltage1--> В</td>
+    </tr>
+    <tr>
+        <td>Напряжение ввод В</td>
+        <td id="v2"><!--#voltage2--> В</td>
+    </tr>
+    <tr>
+        <td>Ток нагрузки</td>
+        <td id="i"><!--#current--> А</td>
+    </tr>
+    <tr>
+        <td>Полная мощность</td>
+        <td><!--#spower--> Вт</td>
+    </tr>
+
+    <!-- Скрытые сетевые параметры -->
+    <tr style="display:none;">
+        <td>IP</td>
+        <td><!--#netip--></td>
+    </tr>
+    <tr style="display:none;">
+        <td>Mask</td>
+        <td><!--#netmask--></td>
+    </tr>
+    <tr style="display:none;">
+        <td>Gateway</td>
+        <td><!--#netgw--></td>
+    </tr>
+    <tr style="display:none;">
+        <td>Дата и время</td>
+        <td><!--#datetime--></td>
+    </tr>
+</table>

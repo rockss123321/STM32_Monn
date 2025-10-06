@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bonch-ATS Monitoring — Журнал</title>
+<style>
+    body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        margin: 0;
+        background-color: #1c1c1c;
+        color: #fff;
+        display: flex;
+    }
+
+    /* Боковое меню */
+    nav {
+        width: 200px;
+        background-color: #111;
+        display: flex;
+        flex-direction: column;
+        padding-top: 20px;
+        box-shadow: 2px 0 5px rgba(0,0,0,0.5);
+    }
+
+    nav a {
+        padding: 15px 20px;
+        color: #fff;
+        text-decoration: none;
+        font-size: 16px;
+        margin-bottom: 5px;
+        border-left: 4px solid transparent;
+        transition: all 0.2s;
+        word-wrap: break-word; /* перенос текста */
+    }
+
+    nav a:hover {
+        background-color: #333;
+        border-left: 4px solid #ff9900;
+    }
+
+    nav a.active {
+        background-color: #222;
+        border-left: 4px solid #ff9900;
+    }
+
+    main {
+        flex: 1;
+        padding: 20px 30px;
+    }
+
+    header {
+        font-size: 24px;
+        font-weight: bold;
+        margin-bottom: 20px;
+        color: #ff9900;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 18px;
+        background-color: #2c2c2c;
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    th, td {
+        padding: 12px 16px;
+        text-align: left;
+        border-bottom: 1px solid #444;
+    }
+
+    th {
+        background-color: #333;
+        font-weight: 600;
+        color: #ff9900;
+    }
+
+    tr:last-child td {
+        border-bottom: none;
+    }
+
+    /* Подсветка строк для журнала */
+    .ok { background-color: #ff9900; color: #000; }      /* оранжевый */
+    .warning { background-color: #555; color: #fff; }    /* серый */
+    .error { background-color: #000; color: #fff; }      /* черный */
+</style>
+</head>
+<body>
+    <nav>
+        <a href="index.html">Главная</a>
+        <a href="#" class="active">Журнал</a>
+        <a href="settings.html">Настройки</a
+        <a href="update.html">Обновление ПО</a
+		
+    </nav>
+
+    <main>
+        <header>Bonch-ATS Monitoring — Журнал</header>
+        <div id="table-id">
+            <!-- Таблица журнала будет подгружаться сюда -->
+        </div>
+    </main>
+
+<script>
+async function updateTable() {
+    const table_div = document.getElementById("table-id");
+    try {
+        const resp = await fetch('/event.shtml');
+        const data = await resp.text();
+
+        const scrollPosition = window.scrollY;
+        table_div.innerHTML = data;
+        window.scrollTo(0, scrollPosition);
+
+        // Закругление углов
+        const tables = table_div.getElementsByTagName('table');
+        for (let table of tables) {
+            const rows = table.getElementsByTagName('tr');
+            for (let row of rows) {
+                if (row.cells.length > 0) {
+                    row.cells[0].style.borderTopLeftRadius = '8px';
+                    row.cells[0].style.borderBottomLeftRadius = '8px';
+                    const lastCell = row.cells[row.cells.length - 1];
+                    lastCell.style.borderTopRightRadius = '8px';
+                    lastCell.style.borderBottomRightRadius = '8px';
+                }
+            }
+        }
+
+        // Для журнала можно добавить подсветку по необходимости,
+        // например, строки с событием ERROR -> .error, WARNING -> .warning, INFO -> .ok
+        const rows = table_div.getElementsByTagName('tr');
+        for (let i = 1; i < rows.length; i++) {
+            const text = rows[i].textContent.toLowerCase();
+            if (text.includes('error')) {
+                rows[i].className = 'error';
+            } else if (text.includes('warning')) {
+                rows[i].className = 'warning';
+            } else {
+                rows[i].className = 'ok';
+            }
+        }
+
+    } catch (err) {
+        console.error('Ошибка загрузки журнала:', err);
+        table_div.innerHTML = '<p style="color:red;">Не удалось загрузить данные журнала</p>';
+    }
+}
+
+// Обновление каждые 5 секунд
+updateTable();
+setInterval(updateTable, 5000);
+</script>
+</body>
+</html>

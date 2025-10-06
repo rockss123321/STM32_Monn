@@ -1,0 +1,9 @@
+../Core/Src/buttons/buttons.c:26:12:pin_to_index	16	static
+../Core/Src/buttons/buttons.c:36:15:Buttons_GetState	24	static
+../Core/Src/buttons/buttons.c:49:6:Buttons_SetDebounceMs	16	static
+../Core/Src/buttons/buttons.c:50:6:Buttons_SetLongPressMs	16	static
+../Core/Src/buttons/buttons.c:52:6:Buttons_Init	16	static
+../Core/Src/buttons/buttons.c:64:6:Buttons_RegisterCallback	16	static
+../Core/Src/buttons/buttons.c:71:6:Buttons_EXTI_Handle	32	static
+../Core/Src/buttons/buttons.c:105:6:Buttons_Task	24	static
+../Core/Src/buttons/buttons.c:126:6:HAL_GPIO_EXTI_Callback	16	static
