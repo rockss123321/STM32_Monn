@@ -151,6 +151,7 @@ tCGI CGI_TAB[5];
 
 const char* NET_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], char *pcValue[])
 {
+	new_dhcp_enabled = 0;
     for (int i=0; i<iNumParams; i++) {
         // Сетевые
         if (strcmp(pcParam[i], "ip") == 0 && pcValue[i][0] != '\0') new_ip.addr = ipaddr_addr(pcValue[i]);
@@ -459,7 +460,7 @@ int main(void)
                             bk_snmp_write, sizeof(bk_snmp_write),
                             bk_snmp_trap, sizeof(bk_snmp_trap));
 
-  if (bk_ip.addr != 0) {
+  if (bk_dhcp || bk_ip.addr != 0) {
       netif_set_down(&gnetif);
       if (bk_dhcp) {
           dhcp_start(&gnetif);
@@ -474,6 +475,15 @@ int main(void)
   if (bk_snmp_write[0]) strncpy(snmp_write, bk_snmp_write, sizeof(snmp_write)-1);
   if (bk_snmp_trap[0])  strncpy(snmp_trap,  bk_snmp_trap,  sizeof(snmp_trap)-1);
 
+  snmp_community[0] =snmp_read;
+  snmp_community_write[0] = snmp_write;
+  snmp_set_community_trap(snmp_trap);
+
+  RTC_DateTypeDef sDate;
+  RTC_TimeTypeDef sTime;
+
+  HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
+  HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
 
   httpd_init();
 
@@ -486,7 +496,7 @@ int main(void)
   CGI_TAB[2] = TIME_CGI;
   CGI_TAB[3] = SNMP_CGI;
   CGI_TAB[4] = FW_UPDATE_CGI;
-  http_set_cgi_handlers(CGI_TAB, 6); // количество зарегистрированных CGI
+  http_set_cgi_handlers(CGI_TAB, 5); // количество зарегистрированных CGI
   snmp_init();
 
   snmp_set_mibs(mib_array, snmp_num_mibs);
@@ -579,18 +589,21 @@ int main(void)
 	    }
 
 
-	        // Проверка применения SNMP
-	    	if (apply_snmp_settings) {
-	    	    apply_snmp_settings = 0;
-	    	    snmp_community[0] = snmp_read;
-	    	    snmp_community_write[0] = snmp_write;
-	    	    snmp_set_community_trap(snmp_trap);
+	    // Проверка применения SNMP
+	            if (apply_snmp_settings) {
+	                apply_snmp_settings = 0;
+	                snmp_community[0] = snmp_read;
+	                snmp_community_write[0] = snmp_write;
+	                snmp_set_community_trap(snmp_trap);
 
-	    	    Settings_Save_To_Backup(new_ip, new_mask, new_gw, new_dhcp_enabled,
-	    	                            snmp_read, snmp_write, snmp_trap);
-	    	}
-
-
+	                // Preserve current network settings: reload them from backup and rewrite with new SNMP
+	                ip4_addr_t saved_ip, saved_mask, saved_gw;
+	                uint8_t saved_dhcp;
+	                Settings_Load_From_Backup(&saved_ip, &saved_mask, &saved_gw, &saved_dhcp,
+	                                          NULL, 0, NULL, 0, NULL, 0);
+	                Settings_Save_To_Backup(saved_ip, saved_mask, saved_gw, saved_dhcp,
+	                                        snmp_read, snmp_write, snmp_trap);
+	            }
 
 
     /* USER CODE END WHILE */
@@ -759,51 +772,51 @@ static void MX_I2C1_Init(void)
   * @param None
   * @retval None
   */
-static void MX_RTC_Init(void)
+void MX_RTC_Init(void)
 {
-    RTC_TimeTypeDef sTime = {0};
-    RTC_DateTypeDef sDate = {0};
-
-    __HAL_RCC_PWR_CLK_ENABLE();
-    HAL_PWR_EnableBkUpAccess(); // 🔹 доступ к backup-домену
-
-    __HAL_RCC_RTC_ENABLE();     // 🔹 включаем тактирование RTC, если ещё не включено
+    RTC_DateTypeDef sDate;
+    RTC_TimeTypeDef sTime;
 
     hrtc.Instance = RTC;
     hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
     hrtc.Init.AsynchPrediv = 127;
-    hrtc.Init.SynchPrediv = 255;
+    hrtc.Init.SynchPrediv  = 255;
     hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
     hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
     hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
 
-    if (HAL_RTC_Init(&hrtc) != HAL_OK)
+    if(HAL_RTC_Init(&hrtc) != HAL_OK)
     {
         Error_Handler();
     }
 
-    /* Проверяем, был ли RTC уже инициализирован */
-    if (HAL_RTCEx_BKUPRead(&hrtc, RTC_BKP_DR0) != 0x32F2)
+    // Проверяем, была ли уже установлена дата/время
+    if(HAL_RTCEx_BKUPRead(&hrtc, BKP_MAGIC_REG) != BKP_MAGIC_VALUE)
     {
-        // --- Первый запуск ---
-        sTime.Hours = 0;
+        // RTC ещё не инициализирован — ставим начальные дату и время
+        sDate.WeekDay = RTC_WEEKDAY_MONDAY;
+        sDate.Month   = RTC_MONTH_JANUARY;
+        sDate.Date    = 1;
+        sDate.Year    = 0; // 2000
+
+        if(HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BIN) != HAL_OK)
+        {
+            Error_Handler();
+        }
+
+        sTime.Hours   = 0;
         sTime.Minutes = 0;
         sTime.Seconds = 0;
         sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
         sTime.StoreOperation = RTC_STOREOPERATION_RESET;
-        HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
 
-        sDate.WeekDay = RTC_WEEKDAY_MONDAY;
-        sDate.Month = RTC_MONTH_JANUARY;
-        sDate.Date = 1;
-        sDate.Year = 25;
-        HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
+        if(HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BIN) != HAL_OK)
+        {
+            Error_Handler();
+        }
 
-        HAL_RTCEx_BKUPWrite(&hrtc, RTC_BKP_DR0, 0x32F2); // 💾 флаг инициализации
-    }
-    else
-    {
-        // --- RTC уже настроен, ничего не трогаем ---
+        // Ставим magic, чтобы больше не затирать RTC
+        HAL_RTCEx_BKUPWrite(&hrtc, BKP_MAGIC_REG, BKP_MAGIC_VALUE);
     }
 }
 
