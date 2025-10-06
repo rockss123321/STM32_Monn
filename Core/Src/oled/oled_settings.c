@@ -8,6 +8,12 @@
 #include <string.h>
 #include <stdio.h>
 #include "buttons/buttons_process.h"
+#include "settings_storage.h"
+
+extern ip4_addr_t new_ip, new_mask, new_gw;
+extern uint8_t new_dhcp_enabled;
+extern uint8_t apply_network_settings;
+
 
 #define SSD1306_ROTATED_WIDTH  (SSD1306_HEIGHT)
 #define SSD1306_ROTATED_HEIGHT (SSD1306_WIDTH)
@@ -132,37 +138,58 @@ void Apply_Network_Settings(void)
 {
     ip_addr_t ip_addr, netmask, gw;
 
-    // Преобразуем наши настройки в формат LwIP
     IP4_ADDR(&ip_addr, last_ip[0], last_ip[1], last_ip[2], last_ip[3]);
     IP4_ADDR(&netmask, last_mask[0], last_mask[1], last_mask[2], last_mask[3]);
     IP4_ADDR(&gw, last_gw[0], last_gw[1], last_gw[2], last_gw[3]);
 
-    // Применяем статический IP
     netif_set_addr(&gnetif, &ip_addr, &netmask, &gw);
 
     printf("Network settings applied:\n");
     printf("IP: %d.%d.%d.%d\n", last_ip[0], last_ip[1], last_ip[2], last_ip[3]);
     printf("Mask: %d.%d.%d.%d\n", last_mask[0], last_mask[1], last_mask[2], last_mask[3]);
     printf("GW: %d.%d.%d.%d\n", last_gw[0], last_gw[1], last_gw[2], last_gw[3]);
+
+    /* --- сохраняем в backup-регистры --- */
+    IP4_ADDR(&new_ip, last_ip[0], last_ip[1], last_ip[2], last_ip[3]);
+    IP4_ADDR(&new_mask, last_mask[0], last_mask[1], last_mask[2], last_mask[3]);
+    IP4_ADDR(&new_gw, last_gw[0], last_gw[1], last_gw[2], last_gw[3]);
+    new_dhcp_enabled = dhcp_on ? 1 : 0;
+    apply_network_settings = 1;  // чтобы main тоже увидел изменение
+
+    /* Сохраняем в backup (используем текущие SNMP community из main) */
+    extern char snmp_read[32], snmp_write[32], snmp_trap[32];
+    Settings_Save_To_Backup(new_ip, new_mask, new_gw, new_dhcp_enabled,
+                            snmp_read, snmp_write, snmp_trap);
 }
+
 
 // --- Применение DHCP ---
 static void DHCP_Apply()
 {
-    if(dhcp_on)
+    if (dhcp_on)
     {
-        // Включаем DHCP
         dhcp_start(&gnetif);
         printf("DHCP enabled\n");
     }
     else
     {
-        // Выключаем DHCP и применяем статический IP
         dhcp_stop(&gnetif);
         Apply_Network_Settings();
         printf("DHCP disabled, static IP applied\n");
     }
+
+    /* --- сохраняем флаг DHCP в backup --- */
+    IP4_ADDR(&new_ip, last_ip[0], last_ip[1], last_ip[2], last_ip[3]);
+    IP4_ADDR(&new_mask, last_mask[0], last_mask[1], last_mask[2], last_mask[3]);
+    IP4_ADDR(&new_gw, last_gw[0], last_gw[1], last_gw[2], last_gw[3]);
+    new_dhcp_enabled = dhcp_on ? 1 : 0;
+    apply_network_settings = 1;
+
+    extern char snmp_read[32], snmp_write[32], snmp_trap[32];
+    Settings_Save_To_Backup(new_ip, new_mask, new_gw, new_dhcp_enabled,
+                            snmp_read, snmp_write, snmp_trap);
 }
+
 
 // --- Подтверждение действий ---
 static bool OLED_Confirm(const char *msg)

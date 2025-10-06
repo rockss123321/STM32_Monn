@@ -41,8 +41,9 @@
 #include "buttons/buttons_process.h"
 #include "oled/oled_display.h"
 #include "oled/oled_settings.h"
-#include "credentials.h"
-#include "buttons/buttons.h"           // ДОБАВЬТЕ ЭТО
+//#include "credentials.h"
+#include "buttons/buttons.h"
+#include "settings_storage.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -184,11 +185,11 @@ const char* DATE_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], char *
                 new_year  = (uint8_t)(y % 100);
                 new_month = (uint8_t)m;
                 new_day   = (uint8_t)d;
+                apply_date_settings = 1;
             }
         }
     }
-    apply_date_settings = 1;
-    return "/settings.html";
+    // --- сразу сохраняем в backup (если RTC уже инициализирован) ---
 }
 
 const tCGI DATE_CGI = {"/set_date.cgi", DATE_CGI_Handler};
@@ -447,12 +448,37 @@ int main(void)
   MX_TIM3_Init();
   MX_RTC_Init();
   /* USER CODE BEGIN 2 */
+  Settings_Init();
+
+  ip4_addr_t bk_ip, bk_mask, bk_gw;
+  uint8_t bk_dhcp;
+  char bk_snmp_read[32], bk_snmp_write[32], bk_snmp_trap[32];
+
+  Settings_Load_From_Backup(&bk_ip, &bk_mask, &bk_gw, &bk_dhcp,
+                            bk_snmp_read, sizeof(bk_snmp_read),
+                            bk_snmp_write, sizeof(bk_snmp_write),
+                            bk_snmp_trap, sizeof(bk_snmp_trap));
+
+  if (bk_ip.addr != 0) {
+      netif_set_down(&gnetif);
+      if (bk_dhcp) {
+          dhcp_start(&gnetif);
+      } else {
+          netif_set_addr(&gnetif, &bk_ip, &bk_mask, &bk_gw);
+      }
+      netif_set_up(&gnetif);
+  }
+
+  /* Инициализируем SNMP community из backup */
+  if (bk_snmp_read[0])  strncpy(snmp_read,  bk_snmp_read,  sizeof(snmp_read)-1);
+  if (bk_snmp_write[0]) strncpy(snmp_write, bk_snmp_write, sizeof(snmp_write)-1);
+  if (bk_snmp_trap[0])  strncpy(snmp_trap,  bk_snmp_trap,  sizeof(snmp_trap)-1);
+
 
   httpd_init();
 
   httpd_ssi_init_custom();
 
-  Creds_Init();
   // Регистрация CGI
 
   CGI_TAB[0] = NET_CGI;
@@ -496,82 +522,74 @@ int main(void)
 
 	    OLED_UpdateDisplay();
 
-	    if(apply_network_settings) {
-	        apply_network_settings = 0;  // сбрасываем флаг
+	    if (apply_network_settings) {
+	        apply_network_settings = 0;
 
-	        // временно опускаем интерфейс
 	        netif_set_down(&gnetif);
-
-	        // если был DHCP, остановим его
 	        dhcp_stop(&gnetif);
 
-	        if(new_dhcp_enabled) {
-	            // включаем DHCP
+	        if (new_dhcp_enabled) {
 	            dhcp_start(&gnetif);
 	        } else {
-	            // ставим статический IP
 	            netif_set_addr(&gnetif, &new_ip, &new_mask, &new_gw);
 	        }
-
-	        // поднимаем интерфейс
 	        netif_set_up(&gnetif);
+
+	        Settings_Save_To_Backup(new_ip, new_mask, new_gw, new_dhcp_enabled,
+	                                snmp_read, snmp_write, snmp_trap);
 	    }
 
+
 	    	// Дата
-	    	if(apply_date_settings)
-	    	{
-	    	    apply_date_settings = 0;
+	    if(apply_date_settings)
+	    {
+	        apply_date_settings = 0;
 
-	    	    RTC_DateTypeDef sDate = {0};
-	    	    sDate.Year  = new_year;
-	    	    sDate.Month = new_month;
-	    	    sDate.Date  = new_day;
-	    	    sDate.WeekDay = RTC_WEEKDAY_TUESDAY; // на основе даты можно вычислить
+	        RTC_DateTypeDef sDate = {0};
+	        sDate.Year  = new_year;
+	        sDate.Month = new_month;
+	        sDate.Date  = new_day;
+	        sDate.WeekDay = RTC_WEEKDAY_TUESDAY;
 
-
-	    	    if(HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BIN) != HAL_OK)
-	    	        Error_Handler();
-	    	}
+	        if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BIN) == HAL_OK)
+	        {
+	            RTC_TimeTypeDef t;
+	            HAL_RTC_GetTime(&hrtc, &t, RTC_FORMAT_BIN);
+	        }
+	    }
 
 
 	    	// Обработка ВРЕМЕНИ
-	    	if(apply_time_settings)
-	    	{
-	    	    apply_time_settings = 0; // Сбрасываем флаг сразу
+	    if(apply_time_settings)
+	    {
+	        apply_time_settings = 0;
 
-	    	    RTC_TimeTypeDef sTime = {0};
-	    	    sTime.Hours = new_hours;
-	    	    sTime.Minutes = new_minutes;
-	    	    sTime.Seconds = new_seconds;
-	    	    sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
-	    	    sTime.StoreOperation = RTC_STOREOPERATION_RESET;
+	        RTC_TimeTypeDef sTime = {0};
+	        sTime.Hours   = new_hours;
+	        sTime.Minutes = new_minutes;
+	        sTime.Seconds = new_seconds;
+	        sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+	        sTime.StoreOperation = RTC_STOREOPERATION_RESET;
 
-	    	    // Пробуем BIN формат
-	    	    if(HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BIN) != HAL_OK)
-	    	    {
-	    	        // Если не получилось, пробуем BCD
-	    	        if(HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK)
-	    	        {
-	    	            // Ошибка установки времени
-	    	        }
-	    	    }
-	    	}
-	        // Проверка применения SNMP
-	        if (apply_snmp_settings)
+	        if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BIN) == HAL_OK)
 	        {
-	            apply_snmp_settings = 0;
-
-	            // Здесь применяем community строки к стеку
-	            // --- пример, если у тебя LwIP SNMPv2c ---
-	            snmp_community[0] = snmp_read;
-	            snmp_community_write[0] = snmp_write;
-	            snmp_set_community_trap(snmp_trap);
-
-
-
-	            // Если нужно — сохранить в Flash/EEPROM
-	            Save_SNMP_Settings_To_Flash(snmp_read, snmp_write, snmp_trap);
+	            RTC_DateTypeDef d;
+	            HAL_RTC_GetDate(&hrtc, &d, RTC_FORMAT_BIN);
 	        }
+	    }
+
+
+	        // Проверка применения SNMP
+	    	if (apply_snmp_settings) {
+	    	    apply_snmp_settings = 0;
+	    	    snmp_community[0] = snmp_read;
+	    	    snmp_community_write[0] = snmp_write;
+	    	    snmp_set_community_trap(snmp_trap);
+
+	    	    Settings_Save_To_Backup(new_ip, new_mask, new_gw, new_dhcp_enabled,
+	    	                            snmp_read, snmp_write, snmp_trap);
+	    	}
+
 
 
 
@@ -743,60 +761,50 @@ static void MX_I2C1_Init(void)
   */
 static void MX_RTC_Init(void)
 {
+    RTC_TimeTypeDef sTime = {0};
+    RTC_DateTypeDef sDate = {0};
 
-  /* USER CODE BEGIN RTC_Init 0 */
+    __HAL_RCC_PWR_CLK_ENABLE();
+    HAL_PWR_EnableBkUpAccess(); // 🔹 доступ к backup-домену
 
-  /* USER CODE END RTC_Init 0 */
+    __HAL_RCC_RTC_ENABLE();     // 🔹 включаем тактирование RTC, если ещё не включено
 
-  RTC_TimeTypeDef sTime = {0};
-  RTC_DateTypeDef sDate = {0};
+    hrtc.Instance = RTC;
+    hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
+    hrtc.Init.AsynchPrediv = 127;
+    hrtc.Init.SynchPrediv = 255;
+    hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
+    hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
+    hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
 
-  /* USER CODE BEGIN RTC_Init 1 */
+    if (HAL_RTC_Init(&hrtc) != HAL_OK)
+    {
+        Error_Handler();
+    }
 
-  /* USER CODE END RTC_Init 1 */
+    /* Проверяем, был ли RTC уже инициализирован */
+    if (HAL_RTCEx_BKUPRead(&hrtc, RTC_BKP_DR0) != 0x32F2)
+    {
+        // --- Первый запуск ---
+        sTime.Hours = 0;
+        sTime.Minutes = 0;
+        sTime.Seconds = 0;
+        sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+        sTime.StoreOperation = RTC_STOREOPERATION_RESET;
+        HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
 
-  /** Initialize RTC Only
-  */
-  hrtc.Instance = RTC;
-  hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
-  hrtc.Init.AsynchPrediv = 127;
-  hrtc.Init.SynchPrediv = 255;
-  hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
-  hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
-  hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
-  if (HAL_RTC_Init(&hrtc) != HAL_OK)
-  {
-    Error_Handler();
-  }
+        sDate.WeekDay = RTC_WEEKDAY_MONDAY;
+        sDate.Month = RTC_MONTH_JANUARY;
+        sDate.Date = 1;
+        sDate.Year = 25;
+        HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
 
-  /* USER CODE BEGIN Check_RTC_BKUP */
-
-  /* USER CODE END Check_RTC_BKUP */
-
-  /** Initialize RTC and set the Time and Date
-  */
-  sTime.Hours = 0x0;
-  sTime.Minutes = 0x0;
-  sTime.Seconds = 0x0;
-  sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
-  sTime.StoreOperation = RTC_STOREOPERATION_RESET;
-  if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sDate.WeekDay = RTC_WEEKDAY_MONDAY;
-  sDate.Month = RTC_MONTH_JANUARY;
-  sDate.Date = 0x1;
-  sDate.Year = 0x0;
-
-  if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN RTC_Init 2 */
-
-  /* USER CODE END RTC_Init 2 */
-
+        HAL_RTCEx_BKUPWrite(&hrtc, RTC_BKP_DR0, 0x32F2); // 💾 флаг инициализации
+    }
+    else
+    {
+        // --- RTC уже настроен, ничего не трогаем ---
+    }
 }
 
 /**

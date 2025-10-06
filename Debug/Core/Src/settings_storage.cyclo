@@ -1,0 +1,7 @@
+../Core/Src/settings_storage.c:16:13:bk_write_u32	1
+../Core/Src/settings_storage.c:20:17:bk_read_u32	1
+../Core/Src/settings_storage.c:24:13:bk_write_string	5
+../Core/Src/settings_storage.c:37:13:bk_read_string	4
+../Core/Src/settings_storage.c:51:6:Settings_Init	1
+../Core/Src/settings_storage.c:57:6:Settings_Save_To_Backup	4
+../Core/Src/settings_storage.c:73:6:Settings_Load_From_Backup	16

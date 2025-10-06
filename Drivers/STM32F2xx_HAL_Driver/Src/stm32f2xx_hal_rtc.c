@@ -343,6 +343,17 @@ HAL_StatusTypeDef HAL_RTC_Init(RTC_HandleTypeDef *hrtc)
   {
     hrtc->State = HAL_RTC_STATE_READY;
   }
+  /* USER CODE BEGIN RTC_Init 0 */
+  __HAL_RCC_PWR_CLK_ENABLE();
+  HAL_PWR_EnableBkUpAccess(); // Разрешаем доступ к backup-домену
+
+  // Проверяем, инициализирован ли уже RTC (если нет — включаем его)
+  if (__HAL_RCC_GET_FLAG(RCC_FLAG_BORRST) == RESET) {
+      // ничего не делаем — всё уже включено
+  }
+
+  // Важно: не вызывать Reset backup domain здесь!
+  /* USER CODE END RTC_Init 0 */
 
   return status;
 }
