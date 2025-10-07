@@ -35,6 +35,7 @@
 #include "signal_processor.h"
 #include "ssd1306_driver/ssd1306.h"
 #include <string.h>
+#include <strings.h>
 #include "ssd1306_driver/ssd1306_fonts.h"
 #include "oled/oled_netinfo.h"
 #include "oled/oled_abpage.h"
@@ -204,7 +205,8 @@ const char* DATE_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], char *
             }
         }
     }
-    // --- сразу сохраняем в backup (если RTC уже инициализирован) ---
+    // Возвращаемся на страницу настроек
+    return "/settings.html";
 }
 
 const tCGI DATE_CGI = {"/set_date.cgi", DATE_CGI_Handler};
