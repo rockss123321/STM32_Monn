@@ -222,14 +222,18 @@ const char* TIME_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], char *
     {
         if(strcmp(pcParam[i], "time") == 0 && strlen(pcValue[i]) >= 5)
         {
+            // Декодируем URL-параметр (важно для '%3A' вместо ':')
+            char decoded[16] = {0};
+            url_decode(decoded, pcValue[i]);
+
             // Простой парсинг без sscanf
-            char *colon = strchr(pcValue[i], ':');
+            char *colon = strchr(decoded, ':');
             if(colon != NULL)
             {
                 // Берем первые 2 цифры как часы (пропуская нецифровые)
                 char hour_str[3] = {0};
                 int hs = 0;
-                for (const char* p = pcValue[i]; *p && hs < 2; ++p) {
+                for (const char* p = decoded; *p && hs < 2; ++p) {
                     if (*p >= '0' && *p <= '9') hour_str[hs++] = *p;
                     if (*p == ':') break;
                 }
