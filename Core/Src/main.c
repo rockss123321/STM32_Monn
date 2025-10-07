@@ -226,14 +226,21 @@ const char* TIME_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], char *
             char *colon = strchr(pcValue[i], ':');
             if(colon != NULL)
             {
-                // Берем первые 2 символа как часы
+                // Берем первые 2 цифры как часы (пропуская нецифровые)
                 char hour_str[3] = {0};
-                strncpy(hour_str, pcValue[i], 2);
+                int hs = 0;
+                for (const char* p = pcValue[i]; *p && hs < 2; ++p) {
+                    if (*p >= '0' && *p <= '9') hour_str[hs++] = *p;
+                    if (*p == ':') break;
+                }
                 hour_str[2] = '\0';
 
-                // Берем 2 символа после двоеточия как минуты
+                // Берем 2 цифры после двоеточия как минуты
                 char min_str[3] = {0};
-                strncpy(min_str, colon + 1, 2);
+                int ms = 0;
+                for (const char* p = colon + 1; *p && ms < 2; ++p) {
+                    if (*p >= '0' && *p <= '9') min_str[ms++] = *p;
+                }
                 min_str[2] = '\0';
 
                 int h = atoi(hour_str);
@@ -762,11 +769,12 @@ int main(void)
 	        sDate.Date  = new_day;
 	        sDate.WeekDay = RTC_WEEKDAY_TUESDAY;
 
-	        if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BIN) == HAL_OK)
-	        {
-	            RTC_TimeTypeDef t;
-	            HAL_RTC_GetTime(&hrtc, &t, RTC_FORMAT_BIN);
-	        }
+        if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BIN) == HAL_OK)
+        {
+            /* После установки даты читаем время (разблокировка shadow) */
+            RTC_TimeTypeDef t;
+            HAL_RTC_GetTime(&hrtc, &t, RTC_FORMAT_BIN);
+        }
 	    }
 
 
@@ -1000,8 +1008,10 @@ static void MX_RTC_Init(void)
         Error_Handler();
     }
 
-    /* Проверяем, был ли RTC уже инициализирован */
-    if (HAL_RTCEx_BKUPRead(&hrtc, RTC_BKP_DR0) != 0x32F2)
+    /* Проверяем, был ли RTC уже инициализирован.
+       Ранее использовался DR0, но он занят модулем credentials.
+       Используем DR19: если там 0, считаем, что RTC не инициализирован. */
+    if (HAL_RTCEx_BKUPRead(&hrtc, RTC_BKP_DR19) == 0x00000000U)
     {
         // --- Первый запуск ---
         sTime.Hours = 0;
@@ -1017,7 +1027,7 @@ static void MX_RTC_Init(void)
         sDate.Year = 25;
         HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
 
-        HAL_RTCEx_BKUPWrite(&hrtc, RTC_BKP_DR0, 0x32F2); // 💾 флаг инициализации
+        HAL_RTCEx_BKUPWrite(&hrtc, RTC_BKP_DR19, 0x32F2); // 💾 флаг инициализации RTC
     }
     else
     {
