@@ -183,6 +183,9 @@ fs_bytes_left(struct fs_file *file)
 #include "credentials.h"
 #include <string.h>
 extern volatile uint8_t g_is_authenticated; // флаг из main.c
+extern volatile uint32_t g_auth_deadline_ms; // срок действия авторизации
+extern uint32_t HAL_GetTick(void);
+extern uint32_t AUTH_TTL_MS;
 
 int fs_open_custom(struct fs_file *file, const char *name)
 {
@@ -208,10 +211,22 @@ int fs_open_custom(struct fs_file *file, const char *name)
     return 1;
   }
 
-  /* Для остальных страниц — пропускаем, если авторизован; иначе редирект на login */
-  if (!strcmp(name, "/") || !strcmp(name, "/index.html") || !strcmp(name, "/settings.html") ||
-      !strcmp(name, "/event.html") || !strcmp(name, "/update.html") || strstr(name, ".shtml") != NULL) {
+  /* Для остальных HTML-страниц — пропускаем, если авторизован (и не истёк TTL); иначе редирект на login */
+  const char *path = (name && name[0]) ? name : "/";
+  int is_root = !strcmp(path, "/");
+  int is_index_variation = (!strcmp(path, "/index.html") || !strcmp(path, "index.html"));
+  int is_html = (strstr(path, ".html") != NULL) || (strstr(path, ".shtml") != NULL);
+  if (is_root || is_index_variation || is_html) {
+    uint8_t allow = 0;
     if (g_is_authenticated) {
+      uint32_t now = HAL_GetTick();
+      if (g_auth_deadline_ms == 0 || (int32_t)(g_auth_deadline_ms - now) > 0) {
+        allow = 1;
+      } else {
+        g_is_authenticated = 0; /* просрочено */
+      }
+    }
+    if (allow) {
       return 0; /* отдать страницу обычно */
     } else {
       file->data = (const char*)"HTTP/1.1 302 Found\r\nLocation: /login.html\r\n\r\n";

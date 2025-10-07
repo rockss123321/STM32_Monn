@@ -137,6 +137,11 @@ void ApplySNMPSettings(void) {
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 volatile uint8_t g_is_authenticated = 0; // глобальный флаг авторизации (упрощённая сессия)
+volatile uint32_t g_auth_deadline_ms = 0; // срок действия авторизации (ms от HAL_GetTick)
+
+#ifndef AUTH_TTL_MS
+#define AUTH_TTL_MS (15U * 60U * 1000U) // 15 минут
+#endif
 
 
 ip4_addr_t new_ip, new_mask, new_gw;
@@ -477,8 +482,13 @@ const char* LOGIN_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], char 
     url_decode(user, user);
     url_decode(pass, pass);
     extern volatile uint8_t g_is_authenticated;
+    extern volatile uint32_t g_auth_deadline_ms;
     g_is_authenticated = (user[0] && pass[0] && Creds_CheckLogin(user, pass)) ? 1 : 0;
-    return g_is_authenticated ? "/index.html" : "/login_failed.html";
+    if (g_is_authenticated) {
+        g_auth_deadline_ms = HAL_GetTick() + AUTH_TTL_MS;
+        return "/index.html";
+    }
+    return "/login_failed.html";
 }
 
 void url_decode(char *dst, const char *src)
