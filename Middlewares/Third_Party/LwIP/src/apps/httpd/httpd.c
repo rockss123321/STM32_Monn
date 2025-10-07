@@ -2092,9 +2092,12 @@ http_parse_request(struct pbuf *inp, struct http_state *hs, struct tcp_pcb *pcb)
           uri[uri_len] = 0;
           LWIP_DEBUGF(HTTPD_DEBUG, ("Received \"%s\" request for URI: \"%s\"\n",
                       data, uri));
-          /* Track remote IP for per-IP auth */
+          /* Track request (IP + Cookie) for per-session auth */
           extern void Auth_SetCurrentRemoteIp(const ip_addr_t* ip);
+          extern void Auth_BeginRequestWithCookieHeader(const char* headers, uint16_t headers_len);
           Auth_SetCurrentRemoteIp(&pcb->remote_ip);
+          /* Headers are in 'data' up to CRLFCRLF */
+          Auth_BeginRequestWithCookieHeader(data, (u16_t)(lwip_strnstr(data, CRLF CRLF, data_len) - data + 4));
 #if LWIP_HTTPD_SUPPORT_POST
           if (is_post) {
 #if LWIP_HTTPD_SUPPORT_REQUESTLIST

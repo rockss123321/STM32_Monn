@@ -186,12 +186,31 @@ fs_bytes_left(struct fs_file *file)
 extern volatile uint8_t g_is_authenticated; // флаг из main.c (устаревший общий флаг)
 extern volatile uint32_t g_auth_deadline_ms; // срок действия авторизации (общий)
 extern uint32_t HAL_GetTick(void);
-extern bool Auth_IsCurrentIpAuthorized(uint32_t now_ms);
-extern void Auth_RevokeForCurrentIp(void);
+extern bool Auth_IsCurrentRequestAuthorized(uint32_t now_ms);
+extern void Auth_RevokeCurrentSession(void);
+extern bool Auth_TakePendingSetCookie(char* out_sid, uint16_t out_len);
+extern uint32_t g_auth_ttl_ms;
+
+static char g_setcookie_hdr[256];
 
 int fs_open_custom(struct fs_file *file, const char *name)
 {
   if (file == NULL || name == NULL) return 0;
+
+  /* If login just created a session, send Set-Cookie once and redirect to index */
+  char sid[33];
+  if (Auth_TakePendingSetCookie(sid, sizeof(sid))) {
+    unsigned long max_age = (unsigned long)(g_auth_ttl_ms / 1000U);
+    int n = snprintf(g_setcookie_hdr, sizeof(g_setcookie_hdr),
+                     "HTTP/1.1 302 Found\r\nSet-Cookie: SID=%s; Path=/; HttpOnly; Max-Age=%lu\r\nLocation: /index.html\r\n\r\n",
+                     sid, max_age);
+    (void)n;
+    file->data = g_setcookie_hdr;
+    file->len = strlen(file->data);
+    file->index = file->len;
+    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
+    return 1;
+  }
 
   /* Разрешаем страницы логина и ошибки всегда */
   if (!strcmp(name, "/login.html") || !strcmp(name, "/login_failed.html")) {
@@ -206,7 +225,7 @@ int fs_open_custom(struct fs_file *file, const char *name)
   /* Logout */
   if (!strncmp(name, "/logout.cgi", 11)) {
     g_is_authenticated = 0;
-    Auth_RevokeForCurrentIp();
+    Auth_RevokeCurrentSession();
     file->data = (const char*)"HTTP/1.1 302 Found\r\nLocation: /login.html\r\n\r\n";
     file->len = strlen(file->data);
     file->index = file->len;
@@ -221,7 +240,7 @@ int fs_open_custom(struct fs_file *file, const char *name)
   int is_html = (strstr(path, ".html") != NULL) || (strstr(path, ".shtml") != NULL);
   if (is_root || is_index_variation || is_html) {
     uint32_t now = HAL_GetTick();
-    if (Auth_IsCurrentIpAuthorized(now)) {
+    if (Auth_IsCurrentRequestAuthorized(now)) {
       return 0; /* отдать страницу обычно */
     } else {
       file->data = (const char*)"HTTP/1.1 302 Found\r\nLocation: /login.html\r\n\r\n";

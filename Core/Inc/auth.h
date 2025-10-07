@@ -11,15 +11,21 @@ extern "C" {
 
 void Auth_Init(void);
 
-/* Track the remote IP of the currently handled HTTP request */
+/* Per-request tracking */
 void Auth_SetCurrentRemoteIp(const ip_addr_t* ip);
-const ip_addr_t* Auth_GetCurrentRemoteIp(void);
+void Auth_BeginRequestWithCookieHeader(const char* headers, uint16_t headers_len);
 
-/* Grant/revoke authorization for the current remote IP */
+/* Session management (cookie-based) */
+bool Auth_CreateSessionForCurrentRequest(uint32_t now_ms, uint32_t ttl_ms);
+bool Auth_TakePendingSetCookie(char* out_sid, uint16_t out_len);
+void Auth_RevokeCurrentSession(void);
+
+/* Authorization checks */
+bool Auth_IsCurrentRequestAuthorized(uint32_t now_ms);
+
+/* Legacy IP-based helpers (kept for compatibility) */
 void Auth_GrantForCurrentIp(uint32_t now_ms, uint32_t ttl_ms);
 void Auth_RevokeForCurrentIp(void);
-
-/* Query helpers */
 bool Auth_IsCurrentIpAuthorized(uint32_t now_ms);
 bool Auth_IsIpAuthorized(const ip_addr_t* ip, uint32_t now_ms);
 
