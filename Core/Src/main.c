@@ -783,10 +783,12 @@ int main(void)
 	        sTime.StoreOperation = RTC_STOREOPERATION_RESET;
 
         if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BIN) == HAL_OK)
-	        {
-	            RTC_DateTypeDef d;
-	            HAL_RTC_GetDate(&hrtc, &d, RTC_FORMAT_BIN);
-	        }
+        {
+            /* Согласно HAL, после SetTime нужно прочитать дату, чтобы разблокировать shadow
+               регистры и реально применить время */
+            RTC_DateTypeDef d;
+            HAL_RTC_GetDate(&hrtc, &d, RTC_FORMAT_BIN);
+        }
 	    }
 
 
