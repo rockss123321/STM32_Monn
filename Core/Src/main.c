@@ -44,6 +44,7 @@
 #include "credentials.h"
 #include "buttons/buttons.h"
 #include "settings_storage.h"
+#include "auth.h"
 #include <ctype.h>
 /* USER CODE END Includes */
 
@@ -136,12 +137,15 @@ void ApplySNMPSettings(void) {
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-volatile uint8_t g_is_authenticated = 0; // глобальный флаг авторизации (упрощённая сессия)
-volatile uint32_t g_auth_deadline_ms = 0; // срок действия авторизации (ms от HAL_GetTick)
+volatile uint8_t g_is_authenticated = 0; // глобальный флаг авторизации (устаревший, оставлен для совместимости)
+volatile uint32_t g_auth_deadline_ms = 0; // срок действия авторизации (общий, не используется при IP-режиме)
 
 #ifndef AUTH_TTL_MS
 #define AUTH_TTL_MS (15U * 60U * 1000U) // 15 минут
 #endif
+
+// Глобальная настраиваемая длительность сессии (можно изменить в рантайме)
+uint32_t g_auth_ttl_ms = AUTH_TTL_MS;
 
 
 ip4_addr_t new_ip, new_mask, new_gw;
@@ -483,9 +487,12 @@ const char* LOGIN_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], char 
     url_decode(pass, pass);
     extern volatile uint8_t g_is_authenticated;
     extern volatile uint32_t g_auth_deadline_ms;
+    extern uint32_t g_auth_ttl_ms;
     g_is_authenticated = (user[0] && pass[0] && Creds_CheckLogin(user, pass)) ? 1 : 0;
     if (g_is_authenticated) {
-        g_auth_deadline_ms = HAL_GetTick() + AUTH_TTL_MS;
+        uint32_t now = HAL_GetTick();
+        g_auth_deadline_ms = now + g_auth_ttl_ms; /* legacy flag */
+        Auth_GrantForCurrentIp(now, g_auth_ttl_ms);
         return "/index.html";
     }
     return "/login_failed.html";
@@ -676,6 +683,8 @@ int main(void)
   httpd_init();
 
   httpd_ssi_init_custom();
+
+  Auth_Init();
 
   // Регистрация CGI
 

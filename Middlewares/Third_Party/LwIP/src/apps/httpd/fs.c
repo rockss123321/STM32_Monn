@@ -35,6 +35,7 @@
 #include "lwip/apps/fs.h"
 #include "fsdata.h"
 #include <string.h>
+#include <stdbool.h>
 
 
 #if HTTPD_USE_CUSTOM_FSDATA
@@ -182,10 +183,11 @@ fs_bytes_left(struct fs_file *file)
 /* ---- Авторизация: если логин/пароль верный, перенаправляем на index.html ---- */
 #include "credentials.h"
 #include <string.h>
-extern volatile uint8_t g_is_authenticated; // флаг из main.c
-extern volatile uint32_t g_auth_deadline_ms; // срок действия авторизации
+extern volatile uint8_t g_is_authenticated; // флаг из main.c (устаревший общий флаг)
+extern volatile uint32_t g_auth_deadline_ms; // срок действия авторизации (общий)
 extern uint32_t HAL_GetTick(void);
-extern uint32_t AUTH_TTL_MS;
+extern bool Auth_IsCurrentIpAuthorized(uint32_t now_ms);
+extern void Auth_RevokeForCurrentIp(void);
 
 int fs_open_custom(struct fs_file *file, const char *name)
 {
@@ -204,6 +206,7 @@ int fs_open_custom(struct fs_file *file, const char *name)
   /* Logout */
   if (!strncmp(name, "/logout.cgi", 11)) {
     g_is_authenticated = 0;
+    Auth_RevokeForCurrentIp();
     file->data = (const char*)"HTTP/1.1 302 Found\r\nLocation: /login.html\r\n\r\n";
     file->len = strlen(file->data);
     file->index = file->len;
@@ -217,16 +220,8 @@ int fs_open_custom(struct fs_file *file, const char *name)
   int is_index_variation = (!strcmp(path, "/index.html") || !strcmp(path, "index.html"));
   int is_html = (strstr(path, ".html") != NULL) || (strstr(path, ".shtml") != NULL);
   if (is_root || is_index_variation || is_html) {
-    uint8_t allow = 0;
-    if (g_is_authenticated) {
-      uint32_t now = HAL_GetTick();
-      if (g_auth_deadline_ms == 0 || (int32_t)(g_auth_deadline_ms - now) > 0) {
-        allow = 1;
-      } else {
-        g_is_authenticated = 0; /* просрочено */
-      }
-    }
-    if (allow) {
+    uint32_t now = HAL_GetTick();
+    if (Auth_IsCurrentIpAuthorized(now)) {
       return 0; /* отдать страницу обычно */
     } else {
       file->data = (const char*)"HTTP/1.1 302 Found\r\nLocation: /login.html\r\n\r\n";

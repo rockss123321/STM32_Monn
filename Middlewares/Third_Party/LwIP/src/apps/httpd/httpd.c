@@ -2035,7 +2035,7 @@ http_parse_request(struct pbuf *inp, struct http_state *hs, struct tcp_pcb *pcb)
       char *sp1, *sp2;
       u16_t left_len, uri_len;
       LWIP_DEBUGF(HTTPD_DEBUG | LWIP_DBG_TRACE, ("CRLF received, parsing request\n"));
-      /* parse method */
+  /* parse method */
       if (!strncmp(data, "GET ", 4)) {
         sp1 = data + 3;
         /* received GET request */
@@ -2092,6 +2092,9 @@ http_parse_request(struct pbuf *inp, struct http_state *hs, struct tcp_pcb *pcb)
           uri[uri_len] = 0;
           LWIP_DEBUGF(HTTPD_DEBUG, ("Received \"%s\" request for URI: \"%s\"\n",
                       data, uri));
+          /* Track remote IP for per-IP auth */
+          extern void Auth_SetCurrentRemoteIp(const ip_addr_t* ip);
+          Auth_SetCurrentRemoteIp(&pcb->remote_ip);
 #if LWIP_HTTPD_SUPPORT_POST
           if (is_post) {
 #if LWIP_HTTPD_SUPPORT_REQUESTLIST
