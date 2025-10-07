@@ -492,17 +492,8 @@ const char* LOGIN_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], char 
     if (g_is_authenticated) {
         uint32_t now = HAL_GetTick();
         g_auth_deadline_ms = now + g_auth_ttl_ms; /* legacy */
-        /* создаём cookie-сессию и просим httpd включить Set-Cookie */
-        if (Auth_CreateSessionForCurrentRequest(now, g_auth_ttl_ms)) {
-            char sid[33];
-            if (Auth_TakePendingSetCookie(sid, sizeof(sid))) {
-                static char hdr[128];
-                int n = snprintf(hdr, sizeof(hdr),
-                    "HTTP/1.1 302 Found\r\nSet-Cookie: SID=%s; Path=/; HttpOnly\r\nLocation: /index.html\r\n\r\n",
-                    sid);
-                file->data = (const char*)hdr; /* not available here; handled in fs_open_custom */
-            }
-        }
+        /* создаём cookie-сессию; заголовок Set-Cookie вернётся при следующем fs_open */
+        (void)Auth_CreateSessionForCurrentRequest(now, g_auth_ttl_ms);
         return "/index.html";
     }
     return "/login_failed.html";
