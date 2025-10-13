@@ -1,0 +1,15 @@
+../Core/Src/auth.c:27:17:rng32	8	static
+../Core/Src/auth.c:36:13:gen_sid	24	static
+../Core/Src/auth.c:46:6:Auth_Init	8	static
+../Core/Src/auth.c:53:6:Auth_SetCurrentRemoteIp	16	static
+../Core/Src/auth.c:62:6:Auth_BeginRequestWithCookieHeader	48	static
+../Core/Src/auth.c:95:12:session_find_by_sid	24	static
+../Core/Src/auth.c:103:6:Auth_CreateSessionForCurrentRequest	64	static
+../Core/Src/auth.c:122:6:Auth_TakePendingSetCookie	16	static
+../Core/Src/auth.c:130:6:Auth_RevokeCurrentSession	16	static
+../Core/Src/auth.c:136:6:Auth_IsCurrentRequestAuthorized	24	static
+../Core/Src/auth.c:157:12:auth_find_index_for_ip	24	static
+../Core/Src/auth.c:165:6:Auth_GrantForCurrentIp	24	static
+../Core/Src/auth.c:180:6:Auth_RevokeForCurrentIp	16	static
+../Core/Src/auth.c:185:6:Auth_IsCurrentIpAuthorized	24	static
+../Core/Src/auth.c:194:6:Auth_IsIpAuthorized	24	static

@@ -31,16 +31,16 @@ void SignalProcessor_Update(uint32_t *adc_buf, size_t samples)
     }
 
     // RMS
-    voltage1 = (sqrtf(sum_v1 / samples) - 0.82)*780;
-    if (voltage1 < 20.0f) {
+    voltage1 = (sqrtf(sum_v1 / samples)*244.4);
+    if (voltage1 < 10.0f) {
         voltage1 = 0.0f;
     }
-    voltage2 = (sqrtf(sum_v2 / samples) - 0.82)*780;
-    if (voltage2 < 20.0f) {
+    voltage2 = (sqrtf(sum_v2 / samples)*245.9);
+    if (voltage2 < 10.0f) {
         voltage2 = 0.0f;
     }
-	current  = (sqrtf(sum_i  / samples) - 0.82)*25;
-    if (current < 0.205f) {
+	current  = (sqrtf(sum_i  / samples)*4.8);
+    if (current < 0.10f) {
         current = 0.0f;
     }
 

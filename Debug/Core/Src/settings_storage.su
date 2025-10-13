@@ -1,7 +1,7 @@
-../Core/Src/settings_storage.c:17:13:bk_write_u32	16	static
-../Core/Src/settings_storage.c:21:17:bk_read_u32	16	static
-../Core/Src/settings_storage.c:25:13:bk_write_string	56	static
-../Core/Src/settings_storage.c:41:13:bk_read_string	48	static
-../Core/Src/settings_storage.c:57:6:Settings_Init	16	static
-../Core/Src/settings_storage.c:63:6:Settings_Save_To_Backup	24	static
-../Core/Src/settings_storage.c:79:6:Settings_Load_From_Backup	64	static
+../Core/Src/settings_storage.c:24:13:bk_write_u32	16	static
+../Core/Src/settings_storage.c:28:17:bk_read_u32	16	static
+../Core/Src/settings_storage.c:32:13:bk_write_string	56	static
+../Core/Src/settings_storage.c:48:13:bk_read_string	48	static
+../Core/Src/settings_storage.c:64:6:Settings_Init	16	static
+../Core/Src/settings_storage.c:70:6:Settings_Save_To_Backup	24	static
+../Core/Src/settings_storage.c:87:6:Settings_Load_From_Backup	40	static

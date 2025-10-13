@@ -35,6 +35,7 @@
 #include "signal_processor.h"
 #include "ssd1306_driver/ssd1306.h"
 #include <string.h>
+#include <strings.h>
 #include "ssd1306_driver/ssd1306_fonts.h"
 #include "oled/oled_netinfo.h"
 #include "oled/oled_abpage.h"
@@ -44,6 +45,8 @@
 #include "credentials.h"
 #include "buttons/buttons.h"
 #include "settings_storage.h"
+#include "auth.h"
+#include <ctype.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -135,7 +138,15 @@ void ApplySNMPSettings(void) {
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-volatile uint8_t g_is_authenticated = 0; // глобальный флаг авторизации (упрощённая сессия)
+volatile uint8_t g_is_authenticated = 0; // глобальный флаг авторизации (устаревший, оставлен для совместимости)
+volatile uint32_t g_auth_deadline_ms = 0; // срок действия авторизации (общий, не используется при IP-режиме)
+
+#ifndef AUTH_TTL_MS
+#define AUTH_TTL_MS (15U * 60U * 1000U) // 15 минут
+#endif
+
+// Глобальная настраиваемая длительность сессии (можно изменить в рантайме)
+uint32_t g_auth_ttl_ms = AUTH_TTL_MS;
 
 
 ip4_addr_t new_ip, new_mask, new_gw;
@@ -143,12 +154,14 @@ uint8_t new_dhcp_enabled = 0;
 uint8_t apply_network_settings = 0;  // флаг применения
 
 
-// Прототип CGI-функции
+// Прототипы CGI-функций
 const char * NET_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], char *pcValue[]);
+const char * LOGIN_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], char *pcValue[]);
 
 // Таблица CGI
 const tCGI NET_CGI = {"/set_network.cgi", NET_CGI_Handler};
-tCGI CGI_TAB[5];
+const tCGI LOGIN_CGI = {"/login.cgi", LOGIN_CGI_Handler};
+tCGI CGI_TAB[6];
 
 const char* NET_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], char *pcValue[])
 {
@@ -192,7 +205,8 @@ const char* DATE_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], char *
             }
         }
     }
-    // --- сразу сохраняем в backup (если RTC уже инициализирован) ---
+    // Возвращаемся на страницу настроек
+    return "/settings.html";
 }
 
 const tCGI DATE_CGI = {"/set_date.cgi", DATE_CGI_Handler};
@@ -208,18 +222,29 @@ const char* TIME_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], char *
     {
         if(strcmp(pcParam[i], "time") == 0 && strlen(pcValue[i]) >= 5)
         {
+            // Декодируем URL-параметр (важно для '%3A' вместо ':')
+            char decoded[16] = {0};
+            url_decode(decoded, pcValue[i]);
+
             // Простой парсинг без sscanf
-            char *colon = strchr(pcValue[i], ':');
+            char *colon = strchr(decoded, ':');
             if(colon != NULL)
             {
-                // Берем первые 2 символа как часы
+                // Берем первые 2 цифры как часы (пропуская нецифровые)
                 char hour_str[3] = {0};
-                strncpy(hour_str, pcValue[i], 2);
+                int hs = 0;
+                for (const char* p = decoded; *p && hs < 2; ++p) {
+                    if (*p >= '0' && *p <= '9') hour_str[hs++] = *p;
+                    if (*p == ':') break;
+                }
                 hour_str[2] = '\0';
 
-                // Берем 2 символа после двоеточия как минуты
+                // Берем 2 цифры после двоеточия как минуты
                 char min_str[3] = {0};
-                strncpy(min_str, colon + 1, 2);
+                int ms = 0;
+                for (const char* p = colon + 1; *p && ms < 2; ++p) {
+                    if (*p >= '0' && *p <= '9') min_str[ms++] = *p;
+                }
                 min_str[2] = '\0';
 
                 int h = atoi(hour_str);
@@ -333,9 +358,6 @@ typedef struct {
 
 FW_Update_Context fw_ctx;
 static bool fw_request_active = false;   // текущий POST = fw_update?
-static bool login_request_active = false; // текущий POST = login?
-static char login_buf[128];
-static uint16_t login_buf_len = 0;
 // --- Helpers for Flash OTA ---
 static uint32_t Flash_GetSector(uint32_t Address)
 {
@@ -462,6 +484,34 @@ const char* FW_Update_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], c
 
 const tCGI FW_UPDATE_CGI = {"/fw_update.cgi", FW_Update_CGI_Handler};
 
+// GET-логин через CGI-параметры user/pass
+const char* LOGIN_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], char *pcValue[])
+{
+    char user[32] = {0};
+    char pass[32] = {0};
+    for (int i = 0; i < iNumParams; i++) {
+        if (strcmp(pcParam[i], "user") == 0 && pcValue[i] && pcValue[i][0]) {
+            strncpy(user, pcValue[i], sizeof(user) - 1);
+        } else if (strcmp(pcParam[i], "pass") == 0 && pcValue[i] && pcValue[i][0]) {
+            strncpy(pass, pcValue[i], sizeof(pass) - 1);
+        }
+    }
+    url_decode(user, user);
+    url_decode(pass, pass);
+    extern volatile uint8_t g_is_authenticated;
+    extern volatile uint32_t g_auth_deadline_ms;
+    extern uint32_t g_auth_ttl_ms;
+    g_is_authenticated = (user[0] && pass[0] && Creds_CheckLogin(user, pass)) ? 1 : 0;
+    if (g_is_authenticated) {
+        uint32_t now = HAL_GetTick();
+        g_auth_deadline_ms = now + g_auth_ttl_ms; /* legacy */
+        /* создаём cookie-сессию; заголовок Set-Cookie вернётся при следующем fs_open */
+        (void)Auth_CreateSessionForCurrentRequest(now, g_auth_ttl_ms);
+        return "/index.html";
+    }
+    return "/login_failed.html";
+}
+
 void url_decode(char *dst, const char *src)
 {
     char a, b;
@@ -502,20 +552,7 @@ err_t httpd_post_begin(void *connection,
 {
     // Сброс признаков по умолчанию
     fw_request_active = false;
-    login_request_active = false;
 
-    // Обработка логина: проверяем креды при POST /login.cgi
-    if(strcmp(uri, "/login.cgi") == 0) {
-        login_request_active = true;
-        login_buf_len = 0;
-        if (post_data && post_data_len > 0) {
-            uint16_t copy = (post_data_len > sizeof(login_buf)) ? sizeof(login_buf) : post_data_len;
-            memcpy(login_buf, post_data, copy);
-            login_buf_len = copy;
-        }
-        *connection_status = 1;
-        return ERR_OK;
-    }
     if(strcmp(uri, "/fw_update.cgi") == 0) {
         fw_request_active = true;
         FW_ResetContext();
@@ -539,18 +576,6 @@ err_t httpd_post_receive_data(void *connection, struct pbuf *p)
 {
     if (p == NULL) return ERR_OK;
 
-    if (login_request_active) {
-        struct pbuf *q = p;
-        while (q && login_buf_len < sizeof(login_buf)) {
-            uint16_t room = sizeof(login_buf) - login_buf_len;
-            uint16_t to_copy = (q->len > room) ? room : q->len;
-            memcpy(login_buf + login_buf_len, q->payload, to_copy);
-            login_buf_len += to_copy;
-            q = q->next;
-        }
-        return ERR_OK;
-    }
-
     if (fw_ctx.active) {
         struct pbuf *q = p;
         while(q) {
@@ -568,56 +593,6 @@ err_t httpd_post_receive_data(void *connection, struct pbuf *p)
 
 void httpd_post_finished(void *connection, char *response_uri, u16_t response_uri_len)
 {
-    // Если это был login — перенаправим по результату авторизации
-    if (login_request_active) {
-        if (response_uri && response_uri_len) {
-            // Разобрать накопленный буфер
-            char user[32]={0}, pass[32]={0};
-            if (login_buf_len > 0) {
-                const char *u = strstr(login_buf, "user=");
-                const char *p = strstr(login_buf, "pass=");
-                if (u) {
-                    u += 5;
-                    size_t n=0; while (u[n] && u[n] != '&' && n < sizeof(user)-1) { user[n]=u[n]; n++; }
-                    user[n]=0;
-                }
-                if (p) {
-                    p += 5;
-                    size_t n=0; while (p[n] && p[n] != '&' && n < sizeof(pass)-1) { pass[n]=p[n]; n++; }
-                    pass[n]=0;
-                }
-            }
-            url_decode(user, user);
-            url_decode(pass, pass);
-
-
-            extern volatile uint8_t g_is_authenticated;
-            g_is_authenticated = (user[0] && pass[0] && Creds_CheckLogin(user, pass)) ? 1 : 0;
-            if (g_is_authenticated) {
-                const char *target = "/index.html";
-                size_t n = strlen(target);
-                if (response_uri_len > 0) {
-                    if (n >= response_uri_len) n = response_uri_len - 1;
-                    memcpy(response_uri, target, n);
-                    response_uri[n] = '\0';
-                }
-            } else {
-                const char *target = "/login_failed.html";
-                size_t n = strlen(target);
-                if (response_uri_len > 0) {
-                    if (n >= response_uri_len) n = response_uri_len - 1;
-                    memcpy(response_uri, target, n);
-                    response_uri[n] = '\0';
-                }
-            }
-
-                    }
-        // сброс буфера и флага
-        login_buf_len = 0;
-        login_request_active = false;
-        return;
-    }
-
     // Если это был fw_update — завершим запись и отдадим соответствующую страницу
     if (fw_request_active) {
         // Завершаем запись: дописываем неполное слово, если нужно
@@ -723,6 +698,8 @@ int main(void)
 
   httpd_ssi_init_custom();
 
+  Auth_Init();
+
   // Регистрация CGI
 
   CGI_TAB[0] = NET_CGI;
@@ -730,7 +707,8 @@ int main(void)
   CGI_TAB[2] = TIME_CGI;
   CGI_TAB[3] = SNMP_CGI;
   CGI_TAB[4] = FW_UPDATE_CGI;
-  http_set_cgi_handlers(CGI_TAB, 5); // количество зарегистрированных CGI
+  CGI_TAB[5] = LOGIN_CGI;
+  http_set_cgi_handlers(CGI_TAB, 6); // количество зарегистрированных CGI
   snmp_init();
 
   snmp_set_mibs(mib_array, snmp_num_mibs);
@@ -795,11 +773,12 @@ int main(void)
 	        sDate.Date  = new_day;
 	        sDate.WeekDay = RTC_WEEKDAY_TUESDAY;
 
-	        if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BIN) == HAL_OK)
-	        {
-	            RTC_TimeTypeDef t;
-	            HAL_RTC_GetTime(&hrtc, &t, RTC_FORMAT_BIN);
-	        }
+        if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BIN) == HAL_OK)
+        {
+            /* После установки даты читаем время (разблокировка shadow) */
+            RTC_TimeTypeDef t;
+            HAL_RTC_GetTime(&hrtc, &t, RTC_FORMAT_BIN);
+        }
 	    }
 
 
@@ -816,10 +795,12 @@ int main(void)
 	        sTime.StoreOperation = RTC_STOREOPERATION_RESET;
 
         if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BIN) == HAL_OK)
-	        {
-	            RTC_DateTypeDef d;
-	            HAL_RTC_GetDate(&hrtc, &d, RTC_FORMAT_BIN);
-	        }
+        {
+            /* Согласно HAL, после SetTime нужно прочитать дату, чтобы разблокировать shadow
+               регистры и реально применить время */
+            RTC_DateTypeDef d;
+            HAL_RTC_GetDate(&hrtc, &d, RTC_FORMAT_BIN);
+        }
 	    }
 
 
@@ -1031,8 +1012,10 @@ static void MX_RTC_Init(void)
         Error_Handler();
     }
 
-    /* Проверяем, был ли RTC уже инициализирован */
-    if (HAL_RTCEx_BKUPRead(&hrtc, RTC_BKP_DR0) != 0x32F2)
+    /* Проверяем, был ли RTC уже инициализирован.
+       Ранее использовался DR0, но он занят модулем credentials.
+       Используем DR19: если там 0, считаем, что RTC не инициализирован. */
+    if (HAL_RTCEx_BKUPRead(&hrtc, RTC_BKP_DR19) == 0x00000000U)
     {
         // --- Первый запуск ---
         sTime.Hours = 0;
@@ -1048,7 +1031,7 @@ static void MX_RTC_Init(void)
         sDate.Year = 25;
         HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
 
-        HAL_RTCEx_BKUPWrite(&hrtc, RTC_BKP_DR0, 0x32F2); // 💾 флаг инициализации
+        HAL_RTCEx_BKUPWrite(&hrtc, RTC_BKP_DR19, 0x32F2); // 💾 флаг инициализации RTC
     }
     else
     {

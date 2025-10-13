@@ -35,6 +35,7 @@
 #include "lwip/apps/fs.h"
 #include "fsdata.h"
 #include <string.h>
+#include <stdbool.h>
 
 
 #if HTTPD_USE_CUSTOM_FSDATA
@@ -182,11 +183,34 @@ fs_bytes_left(struct fs_file *file)
 /* ---- Авторизация: если логин/пароль верный, перенаправляем на index.html ---- */
 #include "credentials.h"
 #include <string.h>
-extern volatile uint8_t g_is_authenticated; // флаг из main.c
+extern volatile uint8_t g_is_authenticated; // флаг из main.c (устаревший общий флаг)
+extern volatile uint32_t g_auth_deadline_ms; // срок действия авторизации (общий)
+extern uint32_t HAL_GetTick(void);
+extern bool Auth_IsCurrentRequestAuthorized(uint32_t now_ms);
+extern void Auth_RevokeCurrentSession(void);
+extern bool Auth_TakePendingSetCookie(char* out_sid, uint16_t out_len);
+extern uint32_t g_auth_ttl_ms;
+
+static char g_setcookie_hdr[256];
 
 int fs_open_custom(struct fs_file *file, const char *name)
 {
   if (file == NULL || name == NULL) return 0;
+
+  /* If login just created a session, send Set-Cookie once and redirect to index */
+  char sid[33];
+  if (Auth_TakePendingSetCookie(sid, sizeof(sid))) {
+    unsigned long max_age = (unsigned long)(g_auth_ttl_ms / 1000U);
+    int n = snprintf(g_setcookie_hdr, sizeof(g_setcookie_hdr),
+                     "HTTP/1.1 302 Found\r\nSet-Cookie: SID=%s; Path=/; HttpOnly; Max-Age=%lu\r\nLocation: /index.html\r\n\r\n",
+                     sid, max_age);
+    (void)n;
+    file->data = g_setcookie_hdr;
+    file->len = strlen(file->data);
+    file->index = file->len;
+    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
+    return 1;
+  }
 
   /* Разрешаем страницы логина и ошибки всегда */
   if (!strcmp(name, "/login.html") || !strcmp(name, "/login_failed.html")) {
@@ -195,12 +219,13 @@ int fs_open_custom(struct fs_file *file, const char *name)
 
   /* /login.cgi обрабатывается через CGI handler в main.c */
   if (!strncmp(name, "/login.cgi", 10)) {
-    return 0;
+    return 0; /* для GET-логина параметры парсит CGI */
   }
 
   /* Logout */
   if (!strncmp(name, "/logout.cgi", 11)) {
     g_is_authenticated = 0;
+    Auth_RevokeCurrentSession();
     file->data = (const char*)"HTTP/1.1 302 Found\r\nLocation: /login.html\r\n\r\n";
     file->len = strlen(file->data);
     file->index = file->len;
@@ -208,10 +233,14 @@ int fs_open_custom(struct fs_file *file, const char *name)
     return 1;
   }
 
-  /* Для остальных страниц — пропускаем, если авторизован; иначе редирект на login */
-  if (!strcmp(name, "/") || !strcmp(name, "/index.html") || !strcmp(name, "/settings.html") ||
-      !strcmp(name, "/event.html") || !strcmp(name, "/update.html") || strstr(name, ".shtml") != NULL) {
-    if (g_is_authenticated) {
+  /* Для остальных HTML-страниц — пропускаем, если авторизован (и не истёк TTL); иначе редирект на login */
+  const char *path = (name && name[0]) ? name : "/";
+  int is_root = !strcmp(path, "/");
+  int is_index_variation = (!strcmp(path, "/index.html") || !strcmp(path, "index.html"));
+  int is_html = (strstr(path, ".html") != NULL) || (strstr(path, ".shtml") != NULL);
+  if (is_root || is_index_variation || is_html) {
+    uint32_t now = HAL_GetTick();
+    if (Auth_IsCurrentRequestAuthorized(now)) {
       return 0; /* отдать страницу обычно */
     } else {
       file->data = (const char*)"HTTP/1.1 302 Found\r\nLocation: /login.html\r\n\r\n";
