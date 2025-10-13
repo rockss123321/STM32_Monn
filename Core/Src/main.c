@@ -137,6 +137,9 @@ void ApplySNMPSettings(void) {
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 volatile uint8_t g_is_authenticated = 0; // глобальный флаг авторизации (упрощённая сессия)
+// TTL авторизационной сессии для httpd (мс). Используется в fs.c (LWIP httpd).
+// Если на вашей стороне fs.c ожидает этот символ, задаём разумное значение по умолчанию.
+uint32_t g_auth_ttl_ms = 600000; // 10 минут
 
 
 ip4_addr_t new_ip, new_mask, new_gw;
