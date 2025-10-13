@@ -9,6 +9,9 @@
 #include <stdio.h>
 #include "buttons/buttons_process.h"
 #include "settings_storage.h"
+#include "stm32f2xx_hal.h"
+
+extern RTC_HandleTypeDef hrtc;
 
 extern ip4_addr_t new_ip, new_mask, new_gw;
 extern uint8_t new_dhcp_enabled;
@@ -29,9 +32,9 @@ static const char *menu_items[] = {
     "Mask",
     "Gateway",
     "DHCP",
-    "Reboot",
-    "Reset",
-    "Set rot."
+    "Reset (reboot)",
+    "Reboot to defaults",
+    "Display rotation"
 };
 #define MENU_ITEMS_COUNT (sizeof(menu_items)/sizeof(menu_items[0]))
 
@@ -48,6 +51,9 @@ static char edit_title[16] = "Set IP";
 
 // --- DHCP флаг ---
 static bool dhcp_on = true;
+
+// --- Rotation state (0 = 0°, 1 = 180°) ---
+static uint8_t rotation_180 = 0;
 
 // Время последней активности
 static uint32_t last_activity_time = 0;
@@ -70,6 +76,8 @@ static void OLED_Draw_Edit(void);
 static void OLED_Draw_Confirm(void);
 static void DHCP_Apply(void);
 static bool OLED_Confirm(const char *msg);
+static void OLED_Draw_Rotation(void);
+static void OLED_Draw_DHCP(void);
 
 // Инициализация меню
 void OLED_Settings_Init(void)
@@ -198,9 +206,9 @@ static bool OLED_Confirm(const char *msg)
     ssd1306_SetCursor(0, 0);
     ssd1306_WriteString((char*)msg, *menu_font, White);
     ssd1306_SetCursor(0, 16);
-    ssd1306_WriteString("Middle=OK", *menu_font, White);
+    ssd1306_WriteString("Ср=ОК", *menu_font, White);
     ssd1306_SetCursor(0, 26);
-    ssd1306_WriteString("Left/Right=Cancel", *menu_font, White);
+    ssd1306_WriteString("Л/П=Отмена", *menu_font, White);
     ssd1306_UpdateScreen();
 
     // Ждём нажатия
@@ -474,31 +482,80 @@ void OLED_Settings_Select(void)
             break;
 
         case 3: // DHCP
-            dhcp_on = !dhcp_on;
-            DHCP_Apply();
-            OLED_Settings_Draw();
-            break;
-
-        case 4: // Reboot
-            if(OLED_Confirm("Will Reboot!"))
-                NVIC_SystemReset();
-            else
-                OLED_Settings_Draw();
-            break;
-
-        case 5: // Reset
-            if(OLED_Confirm("Factory Reset!"))
-            {
-                last_ip[0] = 192; last_ip[1] = 168; last_ip[2] = 1; last_ip[3] = 178;
-                last_mask[0] = 255; last_mask[1] = 255; last_mask[2] = 255; last_mask[3] = 0;
-                last_gw[0] = 192; last_gw[1] = 168; last_gw[2] = 1; last_gw[3] = 1;
-                Apply_Network_Settings();
+            OLED_Draw_DHCP();
+            // Wait for selection
+            while (1) {
+                // left/right to toggle, middle to select
+                if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_1) == GPIO_PIN_RESET || HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_3) == GPIO_PIN_RESET) {
+                    dhcp_on = !dhcp_on;
+                    OLED_Draw_DHCP();
+                    HAL_Delay(200);
+                }
+                if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_2) == GPIO_PIN_RESET) {
+                    DHCP_Apply();
+                    break;
+                }
+                HAL_Delay(50);
             }
             OLED_Settings_Draw();
             break;
 
-        case 6: // Set rotation
-            // TODO: вывод 0° / 180° и поворот
+        case 4: // Reset (reboot)
+            if(OLED_Confirm("Reset: программная перезагрузка")) {
+                NVIC_SystemReset();
+            } else {
+                OLED_Settings_Draw();
+            }
+            break;
+
+        case 5: // Reboot to defaults (Factory)
+            if(OLED_Confirm("Reboot: заводские настройки и перезапуск"))
+            {
+                // IP: 192.168.0.254, Mask: 255.255.255.0, GW: 192.168.0.1, DHCP=0
+                last_ip[0] = 192; last_ip[1] = 168; last_ip[2] = 0; last_ip[3] = 254;
+                last_mask[0] = 255; last_mask[1] = 255; last_mask[2] = 255; last_mask[3] = 0;
+                last_gw[0] = 192; last_gw[1] = 168; last_gw[2] = 0; last_gw[3] = 1;
+                dhcp_on = false;
+                // Сброс времени и даты в нули
+                RTC_TimeTypeDef t = {0};
+                RTC_DateTypeDef d = {0};
+                // Время 00:00:00
+                t.Hours = 0; t.Minutes = 0; t.Seconds = 0;
+                t.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+                t.StoreOperation = RTC_STOREOPERATION_RESET;
+                HAL_RTC_SetTime(&hrtc, &t, RTC_FORMAT_BIN);
+                // Дата: 01-01-00 (минимально валидная в HAL; "нули" по году)
+                d.Year = 0; d.Month = RTC_MONTH_JANUARY; d.Date = 1; d.WeekDay = RTC_WEEKDAY_MONDAY;
+                HAL_RTC_SetDate(&hrtc, &d, RTC_FORMAT_BIN);
+
+                Apply_Network_Settings();
+
+                // Немедленный перезапуск
+                NVIC_SystemReset();
+            }
+            OLED_Settings_Draw();
+            break;
+
+        case 6: // Display rotation
+            OLED_Draw_Rotation();
+            // Wait for selection
+            while (1) {
+                if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_1) == GPIO_PIN_RESET) {
+                    rotation_180 = 0;
+                    OLED_Draw_Rotation();
+                    HAL_Delay(200);
+                } else if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_3) == GPIO_PIN_RESET) {
+                    rotation_180 = 1;
+                    OLED_Draw_Rotation();
+                    HAL_Delay(200);
+                }
+                if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_2) == GPIO_PIN_RESET) {
+                    ssd1306_SetRotation180(rotation_180);
+                    OLED_Settings_Draw();
+                    break;
+                }
+                HAL_Delay(50);
+            }
             break;
     }
 }
@@ -555,4 +612,87 @@ void OLED_UpdateDisplay(void)
     else {
         OLED_ShowCurrentPage();
     }
+}
+
+// --- Рисование экрана выбора поворота ---
+static void OLED_Draw_Rotation(void)
+{
+    ssd1306_Fill(Black);
+    const int SW = SSD1306_ROTATED_WIDTH;
+    const int SH = SSD1306_ROTATED_HEIGHT;
+
+    const char *title = "Rotation";
+    int title_x = (SW / 2) - ((int)strlen(title) * menu_font->width / 2);
+    if (title_x < 0) title_x = 0;
+    ssd1306_SetCursor(title_x, 2);
+    ssd1306_WriteString((char*)title, *menu_font, White);
+
+    // Options: 0° and 180°
+    const char *opt0 = "0°";
+    const char *opt180 = "180°";
+    int y0 = 24;
+    int y1 = y0 + menu_font->height + vpad;
+
+    // Highlight current selection
+    if (rotation_180 == 0) {
+        ssd1306_FillRect(0, y0 - 1, SW, menu_font->height + 2, White);
+        ssd1306_SetCursor(2, y0);
+        ssd1306_WriteString((char*)opt0, *menu_font, Black);
+        ssd1306_SetCursor(2, y1);
+        ssd1306_WriteString((char*)opt180, *menu_font, White);
+    } else {
+        ssd1306_SetCursor(2, y0);
+        ssd1306_WriteString((char*)opt0, *menu_font, White);
+        ssd1306_FillRect(0, y1 - 1, SW, menu_font->height + 2, White);
+        ssd1306_SetCursor(2, y1);
+        ssd1306_WriteString((char*)opt180, *menu_font, Black);
+    }
+
+    // Instruction
+    ssd1306_SetCursor(0, SH - 20);
+    ssd1306_WriteString("Л/П: выбрать", *menu_font, White);
+    ssd1306_SetCursor(0, SH - 10);
+    ssd1306_WriteString("Ср: применить", *menu_font, White);
+
+    ssd1306_UpdateScreen();
+}
+
+// --- Экран выбора DHCP ---
+static void OLED_Draw_DHCP(void)
+{
+    ssd1306_Fill(Black);
+    const int SW = SSD1306_ROTATED_WIDTH;
+    const int SH = SSD1306_ROTATED_HEIGHT;
+
+    const char *title = "DHCP";
+    int title_x = (SW / 2) - ((int)strlen(title) * menu_font->width / 2);
+    if (title_x < 0) title_x = 0;
+    ssd1306_SetCursor(title_x, 2);
+    ssd1306_WriteString((char*)title, *menu_font, White);
+
+    const char *opt_on = "Включен";
+    const char *opt_off = "Отключен";
+    int y0 = 24;
+    int y1 = y0 + menu_font->height + vpad;
+
+    if (dhcp_on) {
+        ssd1306_FillRect(0, y0 - 1, SW, menu_font->height + 2, White);
+        ssd1306_SetCursor(2, y0);
+        ssd1306_WriteString((char*)opt_on, *menu_font, Black);
+        ssd1306_SetCursor(2, y1);
+        ssd1306_WriteString((char*)opt_off, *menu_font, White);
+    } else {
+        ssd1306_SetCursor(2, y0);
+        ssd1306_WriteString((char*)opt_on, *menu_font, White);
+        ssd1306_FillRect(0, y1 - 1, SW, menu_font->height + 2, White);
+        ssd1306_SetCursor(2, y1);
+        ssd1306_WriteString((char*)opt_off, *menu_font, Black);
+    }
+
+    ssd1306_SetCursor(0, SH - 20);
+    ssd1306_WriteString("Л/П: переключить", *menu_font, White);
+    ssd1306_SetCursor(0, SH - 10);
+    ssd1306_WriteString("Ср: применить", *menu_font, White);
+
+    ssd1306_UpdateScreen();
 }

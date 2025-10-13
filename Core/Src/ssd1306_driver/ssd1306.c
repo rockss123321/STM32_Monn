@@ -28,14 +28,24 @@
 #define SSD1306_ROTATED_WIDTH  (SSD1306_HEIGHT)
 #define SSD1306_ROTATED_HEIGHT (SSD1306_WIDTH)
 
-/* Map logical (lx,ly) -> physical (px,py) for 90° clockwise rotation:
- * px = physical_x = W - 1 - ly
- * py = physical_y = lx
+/* Runtime 180° rotation flag (in addition to fixed 90° mapping) */
+static uint8_t s_rotation_180 = 0;
+
+/* Map logical (lx,ly) -> physical (px,py) for 90° clockwise base rotation.
+ * If s_rotation_180 is set, apply an additional 180° flip in physical space.
  */
-// Поворот 90° против часовой стрелки
+// Поворот 90° против часовой стрелки + опционально 180°
 static inline void ssd1306_map_logical_to_physical(uint8_t lx, uint8_t ly, uint8_t *px, uint8_t *py) {
-    *px = ly;
-    *py = (uint8_t)(SSD1306_HEIGHT - 1 - lx);
+    uint8_t _px = ly;
+    uint8_t _py = (uint8_t)(SSD1306_HEIGHT - 1 - lx);
+
+    if (s_rotation_180) {
+        _px = (uint8_t)(SSD1306_WIDTH  - 1 - _px);
+        _py = (uint8_t)(SSD1306_HEIGHT - 1 - _py);
+    }
+
+    *px = _px;
+    *py = _py;
 }
 
 
@@ -627,6 +637,14 @@ void ssd1306_SetDisplayOn(const uint8_t on) {
 
 uint8_t ssd1306_GetDisplayOn() {
     return SSD1306.DisplayOn;
+}
+
+void ssd1306_SetRotation180(const uint8_t on) {
+    s_rotation_180 = on ? 1U : 0U;
+}
+
+uint8_t ssd1306_GetRotation180(void) {
+    return s_rotation_180;
 }
 
 void ssd1306_FillRect(uint8_t x, uint8_t y, uint8_t w, uint8_t h, SSD1306_COLOR color) {
