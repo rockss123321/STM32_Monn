@@ -78,6 +78,21 @@ static SubmenuType submenu_type = SUBMENU_NONE;
 static bool submenu_active = false;
 static int submenu_index = 0; // 0/1
 static void OLED_Draw_Submenu(void);
+static void Sync_From_Netif(void);
+
+// --- Тип подтверждения действий ---
+typedef enum {
+    CONFIRM_NONE = 0,
+    CONFIRM_APPLY_IP,
+    CONFIRM_APPLY_MASK,
+    CONFIRM_APPLY_GW,
+    CONFIRM_DHCP_ENABLE,
+    CONFIRM_DHCP_DISABLE,
+    CONFIRM_RESET_MCU,
+    CONFIRM_FACTORY_RESET
+} ConfirmType;
+static ConfirmType confirm_type = CONFIRM_NONE;
+// Pending values to apply after confirmation
 
 // Инициализация меню
 void OLED_Settings_Init(void)
@@ -89,6 +104,8 @@ void OLED_Settings_Init(void)
     last_activity_time = HAL_GetTick();
     submenu_active = false;
     submenu_type = SUBMENU_NONE;
+    // Подтягиваем актуальные IP/Mask/GW из сетевого интерфейса
+    Sync_From_Netif();
     OLED_Settings_Draw();
 }
 
@@ -102,42 +119,91 @@ static void OLED_Draw_Confirm(void)
     ssd1306_SetCursor(0, 2);
     ssd1306_WriteString("Confirm", *menu_font, White);
 
-    ssd1306_SetCursor(0, 12);
-    ssd1306_WriteString("settings", *menu_font, White);
+    // Подзаголовок и содержимое в зависимости от типа подтверждения
+    char line[16];
+    switch (confirm_type) {
+        case CONFIRM_APPLY_IP: {
+            ssd1306_SetCursor(0, 14);
+            ssd1306_WriteString("Apply IP", *menu_font, White);
 
-    // IP адрес в две строки
-    ssd1306_SetCursor(0, 22);
-    ssd1306_WriteString("IP:", *menu_font, White);
+            // Показ значения IP в две строки (192.168. / x.y)
+            snprintf(line, sizeof(line), "%d.%d.", last_ip[0], last_ip[1]);
+            ssd1306_SetCursor(0, 28);
+            ssd1306_WriteString(line, *menu_font, White);
+            snprintf(line, sizeof(line), "%d.%d", last_ip[2], last_ip[3]);
+            ssd1306_SetCursor(0, 40);
+            ssd1306_WriteString(line, *menu_font, White);
+            break;
+        }
+        case CONFIRM_APPLY_MASK: {
+            ssd1306_SetCursor(0, 14);
+            ssd1306_WriteString("Apply msk", *menu_font, White);
 
-    // Первая строка IP: 192.168.
-    char ip_str1[16];
-    snprintf(ip_str1, sizeof(ip_str1), "%d.%d.", last_ip[0], last_ip[1]);
-    ssd1306_SetCursor(10, 32);
-    ssd1306_WriteString(ip_str1, *menu_font, White);
+            snprintf(line, sizeof(line), "%d.%d.", last_mask[0], last_mask[1]);
+            ssd1306_SetCursor(0, 28);
+            ssd1306_WriteString(line, *menu_font, White);
+            snprintf(line, sizeof(line), "%d.%d", last_mask[2], last_mask[3]);
+            ssd1306_SetCursor(0, 40);
+            ssd1306_WriteString(line, *menu_font, White);
+            break;
+        }
+        case CONFIRM_APPLY_GW: {
+            ssd1306_SetCursor(0, 14);
+            ssd1306_WriteString("Apply GW", *menu_font, White);
 
-    // Вторая строка: 1.178
-    char ip_str2[16];
-    snprintf(ip_str2, sizeof(ip_str2), "%d.%d", last_ip[2], last_ip[3]);
-    ssd1306_SetCursor(10, 42);
-    ssd1306_WriteString(ip_str2, *menu_font, White);
+            snprintf(line, sizeof(line), "%d.%d.", last_gw[0], last_gw[1]);
+            ssd1306_SetCursor(0, 28);
+            ssd1306_WriteString(line, *menu_font, White);
+            snprintf(line, sizeof(line), "%d.%d", last_gw[2], last_gw[3]);
+            ssd1306_SetCursor(0, 40);
+            ssd1306_WriteString(line, *menu_font, White);
+            break;
+        }
+        case CONFIRM_DHCP_ENABLE: {
+            ssd1306_SetCursor(0, 14);
+            ssd1306_WriteString("DHCP on", *menu_font, White);
+            break;
+        }
+        case CONFIRM_DHCP_DISABLE: {
+            ssd1306_SetCursor(0, 14);
+            ssd1306_WriteString("DHCP off", *menu_font, White);
+            break;
+        }
+        case CONFIRM_RESET_MCU: {
+            ssd1306_SetCursor(0, 14);
+            ssd1306_WriteString("MCU reset", *menu_font, White);
+            break;
+        }
+        case CONFIRM_FACTORY_RESET: {
+            ssd1306_SetCursor(0, 14);
+            ssd1306_WriteString("Factory", *menu_font, White);
+            ssd1306_SetCursor(0, 28);
+            ssd1306_WriteString("IP 192.168", *menu_font, White);
+            ssd1306_SetCursor(0, 40);
+            ssd1306_WriteString("0.254 D=0", *menu_font, White);
+            break;
+        }
+        default:
+            break;
+    }
 
-    // Опции Yes/No
+    // Опции Да/Нет
     if(confirm_selection == 0) {
-        // Yes выделено (слева)
+        // Да выделено (слева)
         ssd1306_FillRect(0, 55, 25, menu_font->height + 2, White);
         ssd1306_SetCursor(2, 57);
-        ssd1306_WriteString("Yes", *menu_font, Black);
+        ssd1306_WriteString("Да", *menu_font, Black);
 
         ssd1306_SetCursor(30, 57);
-        ssd1306_WriteString("No", *menu_font, White);
+        ssd1306_WriteString("Нет", *menu_font, White);
     } else {
-        // No выделено (справа)
+        // Нет выделено (справа)
         ssd1306_SetCursor(0, 57);
-        ssd1306_WriteString("Yes", *menu_font, White);
+        ssd1306_WriteString("Да", *menu_font, White);
 
         ssd1306_FillRect(30, 55, 25, menu_font->height + 2, White);
         ssd1306_SetCursor(32, 57);
-        ssd1306_WriteString("No", *menu_font, Black);
+        ssd1306_WriteString("Нет", *menu_font, Black);
     }
 
     ssd1306_UpdateScreen();
@@ -172,10 +238,40 @@ static void OLED_Draw_Submenu(void)
         y += menu_font->height + vpad;
     }
 
+    // Подписи управления (две строки, чтобы уместить)
     ssd1306_SetCursor(0, 52);
-    ssd1306_WriteString("Mid=Select", *menu_font, White);
+    ssd1306_WriteString("Mid -", *menu_font, White);
+    ssd1306_SetCursor(0, 52 + menu_font->height);
+    ssd1306_WriteString("Select", *menu_font, White);
 
     ssd1306_UpdateScreen();
+}
+
+// Синхронизация last_ip/mask/gw из текущего состояния netif
+static void Sync_From_Netif(void)
+{
+    const ip4_addr_t *a_ip = netif_ip4_addr(&gnetif);
+    const ip4_addr_t *a_mask = netif_ip4_netmask(&gnetif);
+    const ip4_addr_t *a_gw = netif_ip4_gw(&gnetif);
+
+    if (a_ip && a_ip->addr != 0) {
+        last_ip[0] = ip4_addr1_16(a_ip);
+        last_ip[1] = ip4_addr2_16(a_ip);
+        last_ip[2] = ip4_addr3_16(a_ip);
+        last_ip[3] = ip4_addr4_16(a_ip);
+    }
+    if (a_mask && a_mask->addr != 0) {
+        last_mask[0] = ip4_addr1_16(a_mask);
+        last_mask[1] = ip4_addr2_16(a_mask);
+        last_mask[2] = ip4_addr3_16(a_mask);
+        last_mask[3] = ip4_addr4_16(a_mask);
+    }
+    if (a_gw && a_gw->addr != 0) {
+        last_gw[0] = ip4_addr1_16(a_gw);
+        last_gw[1] = ip4_addr2_16(a_gw);
+        last_gw[2] = ip4_addr3_16(a_gw);
+        last_gw[3] = ip4_addr4_16(a_gw);
+    }
 }
 
 // --- Применение сетевых настроек в LwIP ---
@@ -357,7 +453,7 @@ static void OLED_Draw_Edit()
     ssd1306_SetCursor(0, SH - 20);
     ssd1306_WriteString("Change", *menu_font, White);
     ssd1306_SetCursor(0, SH - 10);
-    ssd1306_WriteString("Mid: Next", *menu_font, White);
+    ssd1306_WriteString("Mid - Next", *menu_font, White);
 
     ssd1306_UpdateScreen();
 }
@@ -470,10 +566,44 @@ void OLED_Settings_Select(void)
 
     if(confirm_active) {
         if(confirm_selection == 0) {
-            // Yes - применяем настройки
-            Apply_Network_Settings();
+            // Yes - применяем/выполняем действие в зависимости от типа
+            switch (confirm_type) {
+                case CONFIRM_APPLY_IP:
+                case CONFIRM_APPLY_MASK:
+                case CONFIRM_APPLY_GW:
+                    Apply_Network_Settings();
+                    break;
+                case CONFIRM_DHCP_ENABLE:
+                case CONFIRM_DHCP_DISABLE:
+                    DHCP_Apply();
+                    break;
+                case CONFIRM_RESET_MCU:
+                    NVIC_SystemReset();
+                    break;
+                case CONFIRM_FACTORY_RESET: {
+                    last_ip[0] = 192; last_ip[1] = 168; last_ip[2] = 0; last_ip[3] = 254;
+                    last_mask[0] = 255; last_mask[1] = 255; last_mask[2] = 255; last_mask[3] = 0;
+                    last_gw[0] = 192; last_gw[1] = 168; last_gw[2] = 0; last_gw[3] = 1;
+                    dhcp_on = false;
+                    Apply_Network_Settings();
+                    RTC_TimeTypeDef t = {0};
+                    t.Hours = 0; t.Minutes = 0; t.Seconds = 0;
+                    t.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+                    t.StoreOperation = RTC_STOREOPERATION_RESET;
+                    HAL_RTC_SetTime(&hrtc, &t, RTC_FORMAT_BIN);
+                    RTC_DateTypeDef d = {0};
+                    d.Year = 0; d.Month = RTC_MONTH_JANUARY; d.Date = 1; d.WeekDay = RTC_WEEKDAY_MONDAY;
+                    HAL_RTC_SetDate(&hrtc, &d, RTC_FORMAT_BIN);
+                    break;
+                }
+                default:
+                    break;
+            }
         }
         confirm_active = false;
+        confirm_type = CONFIRM_NONE;
+        submenu_active = false;
+        submenu_type = SUBMENU_NONE;
         OLED_Settings_Draw();
         return;
     }
@@ -481,15 +611,18 @@ void OLED_Settings_Select(void)
     if (submenu_active) {
         if (submenu_type == SUBMENU_DHCP) {
             dhcp_on = (submenu_index == 0);
-            DHCP_Apply();
+            confirm_active = true;
+            confirm_selection = 0;
+            confirm_type = dhcp_on ? CONFIRM_DHCP_ENABLE : CONFIRM_DHCP_DISABLE;
+            OLED_Draw_Confirm();
         } else if (submenu_type == SUBMENU_ROTATION) {
             uint8_t rot180 = (submenu_index == 1) ? 1 : 0;
             ssd1306_SetRotation180(rot180);
             Settings_Save_Rotation(rot180);
+            submenu_active = false;
+            submenu_type = SUBMENU_NONE;
+            OLED_Settings_Draw();
         }
-        submenu_active = false;
-        submenu_type = SUBMENU_NONE;
-        OLED_Settings_Draw();
         return;
     }
 
@@ -505,12 +638,15 @@ void OLED_Settings_Select(void)
             {
                 case 0:
                     memcpy(last_ip, edit_parts, 4);
+                    confirm_type = CONFIRM_APPLY_IP;
                     break;
                 case 1:
                     memcpy(last_mask, edit_parts, 4);
+                    confirm_type = CONFIRM_APPLY_MASK;
                     break;
                 case 2:
                     memcpy(last_gw, edit_parts, 4);
+                    confirm_type = CONFIRM_APPLY_GW;
                     break;
             }
 
@@ -529,6 +665,7 @@ void OLED_Settings_Select(void)
             editing_active = true;
             edit_digit = 0;
             strcpy(edit_title, "Set IP");
+            Sync_From_Netif();
             memcpy(edit_parts, last_ip, 4);
             OLED_Draw_Edit();  // ПЕРЕХОДИМ В РЕЖИМ РЕДАКТИРОВАНИЯ
             break;
@@ -537,6 +674,7 @@ void OLED_Settings_Select(void)
             editing_active = true;
             edit_digit = 0;
             strcpy(edit_title, "Set Mask");
+            Sync_From_Netif();
             memcpy(edit_parts, last_mask, 4);
             OLED_Draw_Edit();  // ПЕРЕХОДИМ В РЕЖИМ РЕДАКТИРОВАНИЯ
             break;
@@ -545,6 +683,7 @@ void OLED_Settings_Select(void)
             editing_active = true;
             edit_digit = 0;
             strcpy(edit_title, "Set GW");
+            Sync_From_Netif();
             memcpy(edit_parts, last_gw, 4);
             OLED_Draw_Edit();  // ПЕРЕХОДИМ В РЕЖИМ РЕДАКТИРОВАНИЯ
             break;
@@ -556,36 +695,18 @@ void OLED_Settings_Select(void)
             OLED_Draw_Submenu();
             break;
 
-        case 4: // Reboot -> Factory Reset
-            if(OLED_Confirm("Factory: IP=192.168.0.254, DHCP=0"))
-            {
-                // Сброс к заводским сетевым настройкам
-                last_ip[0] = 192; last_ip[1] = 168; last_ip[2] = 0; last_ip[3] = 254;
-                last_mask[0] = 255; last_mask[1] = 255; last_mask[2] = 255; last_mask[3] = 0;
-                last_gw[0] = 192; last_gw[1] = 168; last_gw[2] = 0; last_gw[3] = 1;
-                dhcp_on = false;
-                Apply_Network_Settings();
-
-                // Сброс времени/даты в нули (валидные поля для RTC)
-                RTC_TimeTypeDef t = {0};
-                t.Hours = 0; t.Minutes = 0; t.Seconds = 0;
-                t.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
-                t.StoreOperation = RTC_STOREOPERATION_RESET;
-                HAL_RTC_SetTime(&hrtc, &t, RTC_FORMAT_BIN);
-
-                RTC_DateTypeDef d = {0};
-                d.Year = 0; d.Month = RTC_MONTH_JANUARY; d.Date = 1; // 01-01-00
-                d.WeekDay = RTC_WEEKDAY_MONDAY;
-                HAL_RTC_SetDate(&hrtc, &d, RTC_FORMAT_BIN);
-            }
-            OLED_Settings_Draw();
+        case 4: // Reboot -> Factory Reset (с подтверждением в общем диалоге)
+            confirm_active = true;
+            confirm_selection = 0;
+            confirm_type = CONFIRM_FACTORY_RESET;
+            OLED_Draw_Confirm();
             break;
 
-        case 5: // Reset -> Программная перезагрузка MCU
-            if(OLED_Confirm("MCU Reset (software)"))
-                NVIC_SystemReset();
-            else
-                OLED_Settings_Draw();
+        case 5: // Reset -> Программная перезагрузка MCU (с подтверждением в общем диалоге)
+            confirm_active = true;
+            confirm_selection = 0;
+            confirm_type = CONFIRM_RESET_MCU;
+            OLED_Draw_Confirm();
             break;
 
         case 6: // Set rotation
