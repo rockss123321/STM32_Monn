@@ -11,6 +11,7 @@ extern RTC_HandleTypeDef hrtc;
 #define BKP_SNMP_BASE        RTC_BKP_DR5
 #define BKP_SNMP_REG_COUNT   4   // 8 регистров на строку (~32 байта)
 #define BKP_MAGIC_REG        RTC_BKP_DR19
+#define BKP_ROT_REG          RTC_BKP_DR18
 #define BKP_MAGIC_VALUE      0xBEEFCAFE
 
 /* --- Вспомогательные функции --- */
@@ -108,4 +109,18 @@ void Settings_Load_From_Backup(ip4_addr_t *ip, ip4_addr_t *mask, ip4_addr_t *gw,
 
     bk_read_string(BKP_SNMP_BASE + BKP_SNMP_REG_COUNT * 2, tmp, BKP_SNMP_REG_COUNT);
     if (snmp_trap) { strncpy(snmp_trap, tmp, snmp_trap_size-1); snmp_trap[snmp_trap_size-1]=0; }
+}
+
+// --- Rotation flag helpers ---
+void Settings_Save_Rotation(uint8_t rot180)
+{
+    bk_write_u32(BKP_ROT_REG, (rot180 ? 1U : 0U));
+    // Ensure backup domain marked as valid
+    bk_write_u32(BKP_MAGIC_REG, BKP_MAGIC_VALUE);
+}
+
+uint8_t Settings_Load_Rotation(void)
+{
+    if (bk_read_u32(BKP_MAGIC_REG) != BKP_MAGIC_VALUE) return 0;
+    return (uint8_t)(bk_read_u32(BKP_ROT_REG) & 0x1U);
 }

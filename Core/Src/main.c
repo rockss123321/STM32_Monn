@@ -632,6 +632,11 @@ int main(void)
   // Инициализация логина/пароля (admin/admin по умолчанию)
   Creds_Init();
   Settings_Init();
+  // Load and apply display rotation before drawing anything
+  {
+    uint8_t rot180 = Settings_Load_Rotation();
+    ssd1306_SetRotation180(rot180);
+  }
 
   ip4_addr_t bk_ip, bk_mask, bk_gw;
   uint8_t bk_dhcp;
