@@ -79,6 +79,7 @@ static bool submenu_active = false;
 static int submenu_index = 0; // 0/1
 static void OLED_Draw_Submenu(void);
 static void Sync_From_Netif(void);
+static void OLED_Draw_YesNo(void);
 
 // --- Тип подтверждения действий ---
 typedef enum {
@@ -172,39 +173,22 @@ static void OLED_Draw_Confirm(void)
         case CONFIRM_RESET_MCU: {
             ssd1306_SetCursor(0, 14);
             ssd1306_WriteString("MCU reset", *menu_font, White);
+            ssd1306_SetCursor(0, 28);
+            ssd1306_WriteString("Just reboot", *menu_font, White);
             break;
         }
         case CONFIRM_FACTORY_RESET: {
             ssd1306_SetCursor(0, 14);
-            ssd1306_WriteString("Factory", *menu_font, White);
+            ssd1306_WriteString("Factory reset", *menu_font, White);
             ssd1306_SetCursor(0, 28);
-            ssd1306_WriteString("IP 192.168", *menu_font, White);
-            ssd1306_SetCursor(0, 40);
-            ssd1306_WriteString("0.254 D=0", *menu_font, White);
+            ssd1306_WriteString("Defaults & reboot", *menu_font, White);
             break;
         }
         default:
             break;
     }
 
-    // Опции Да/Нет
-    if(confirm_selection == 0) {
-        // Да выделено (слева)
-        ssd1306_FillRect(0, 55, 25, menu_font->height + 2, White);
-        ssd1306_SetCursor(2, 57);
-        ssd1306_WriteString("Да", *menu_font, Black);
-
-        ssd1306_SetCursor(30, 57);
-        ssd1306_WriteString("Нет", *menu_font, White);
-    } else {
-        // Нет выделено (справа)
-        ssd1306_SetCursor(0, 57);
-        ssd1306_WriteString("Да", *menu_font, White);
-
-        ssd1306_FillRect(30, 55, 25, menu_font->height + 2, White);
-        ssd1306_SetCursor(32, 57);
-        ssd1306_WriteString("Нет", *menu_font, Black);
-    }
+    OLED_Draw_YesNo();
 
     ssd1306_UpdateScreen();
 }
@@ -238,11 +222,11 @@ static void OLED_Draw_Submenu(void)
         y += menu_font->height + vpad;
     }
 
-    // Подписи управления (две строки, чтобы уместить)
+    // Подписи управления: боковые = Yes/No, средняя — Select
     ssd1306_SetCursor(0, 52);
-    ssd1306_WriteString("Mid -", *menu_font, White);
+    ssd1306_WriteString("Left/Right: Yes/No", *menu_font, White);
     ssd1306_SetCursor(0, 52 + menu_font->height);
-    ssd1306_WriteString("Select", *menu_font, White);
+    ssd1306_WriteString("Mid - Select", *menu_font, White);
 
     ssd1306_UpdateScreen();
 }
@@ -272,6 +256,56 @@ static void Sync_From_Netif(void)
         last_gw[2] = ip4_addr3_16(a_gw);
         last_gw[3] = ip4_addr4_16(a_gw);
     }
+}
+
+// Общий рендер для кнопок Да/Нет внизу
+static void OLED_Draw_YesNo(void)
+{
+    const uint8_t y = 52;
+    const uint8_t h = (uint8_t)(menu_font->height);
+    // Полоска под кнопки
+    ssd1306_DrawRectangle(0, y - 1, SSD1306_ROTATED_WIDTH - 1, y + h + 1, White);
+    if (confirm_selection == 0) {
+        // Yes выделено
+        ssd1306_FillRect(2, y, 28, h, White);
+        ssd1306_SetCursor(5, y);
+        ssd1306_WriteString("Yes", *menu_font, Black);
+
+        ssd1306_SetCursor(36, y);
+        ssd1306_WriteString("No", *menu_font, White);
+    } else {
+        ssd1306_SetCursor(5, y);
+        ssd1306_WriteString("Yes", *menu_font, White);
+
+        ssd1306_FillRect(34, y, 24, h, White);
+        ssd1306_SetCursor(36, y);
+        ssd1306_WriteString("No", *menu_font, Black);
+    }
+}
+
+void OLED_Settings_Back(void)
+{
+    if (!settings_active) return;
+    if (confirm_active) {
+        confirm_active = false;
+        confirm_type = CONFIRM_NONE;
+        OLED_Settings_Draw();
+        return;
+    }
+    if (submenu_active) {
+        submenu_active = false;
+        submenu_type = SUBMENU_NONE;
+        OLED_Settings_Draw();
+        return;
+    }
+    if (editing_active) {
+        editing_active = false;
+        OLED_Settings_Draw();
+        return;
+    }
+    // Если мы в корневом меню — выходим на главную страницу
+    OLED_Settings_Exit();
+    OLED_ShowCurrentPage();
 }
 
 // --- Применение сетевых настроек в LwIP ---
@@ -581,11 +615,14 @@ void OLED_Settings_Select(void)
                     NVIC_SystemReset();
                     break;
                 case CONFIRM_FACTORY_RESET: {
+                    // Устанавливаем заводские сетевые настройки
                     last_ip[0] = 192; last_ip[1] = 168; last_ip[2] = 0; last_ip[3] = 254;
                     last_mask[0] = 255; last_mask[1] = 255; last_mask[2] = 255; last_mask[3] = 0;
                     last_gw[0] = 192; last_gw[1] = 168; last_gw[2] = 0; last_gw[3] = 1;
                     dhcp_on = false;
                     Apply_Network_Settings();
+
+                    // Обнуляем RTC
                     RTC_TimeTypeDef t = {0};
                     t.Hours = 0; t.Minutes = 0; t.Seconds = 0;
                     t.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
@@ -594,6 +631,12 @@ void OLED_Settings_Select(void)
                     RTC_DateTypeDef d = {0};
                     d.Year = 0; d.Month = RTC_MONTH_JANUARY; d.Date = 1; d.WeekDay = RTC_WEEKDAY_MONDAY;
                     HAL_RTC_SetDate(&hrtc, &d, RTC_FORMAT_BIN);
+
+                    // Чистим backup-регистры
+                    Settings_Clear_Backup();
+
+                    // Полная перезагрузка
+                    NVIC_SystemReset();
                     break;
                 }
                 default:
@@ -702,7 +745,7 @@ void OLED_Settings_Select(void)
             OLED_Draw_Confirm();
             break;
 
-        case 5: // Reset -> Программная перезагрузка MCU (с подтверждением в общем диалоге)
+        case 5: // Reset -> Программная перезагрузка MCU (с подтверждением)
             confirm_active = true;
             confirm_selection = 0;
             confirm_type = CONFIRM_RESET_MCU;

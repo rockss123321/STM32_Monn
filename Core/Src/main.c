@@ -659,6 +659,15 @@ int main(void)
           netif_set_addr(&gnetif, &bk_ip, &bk_mask, &bk_gw);
       }
       netif_set_up(&gnetif);
+  } else {
+      // Backup пуст — применяем заводские значения (статический IP)
+      ip4_addr_t def_ip, def_mask, def_gw;
+      IP4_ADDR(&def_ip, 192,168,0,254);
+      IP4_ADDR(&def_mask, 255,255,255,0);
+      IP4_ADDR(&def_gw, 192,168,0,1);
+      netif_set_down(&gnetif);
+      netif_set_addr(&gnetif, &def_ip, &def_mask, &def_gw);
+      netif_set_up(&gnetif);
   }
 
   /* Инициализируем SNMP community из backup */

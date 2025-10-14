@@ -119,16 +119,30 @@ void Buttons_Process(void) {
             btn1_held = 0;
         }
 
-        // Обработка кнопки 2 (Выбор)
+        // Обработка кнопки 2 (Выбор / Долгое нажатие = Назад)
         if (HAL_GPIO_ReadPin(BTN_PORT, BTN2_PIN) == GPIO_PIN_RESET) {
-            HAL_Delay(50);
+            // фиксируем момент первого нажатия
+            if (btn2_press_time == 0) btn2_press_time = now;
+            HAL_Delay(20);
             if (HAL_GPIO_ReadPin(BTN_PORT, BTN2_PIN) == GPIO_PIN_RESET) {
-                OLED_Settings_Select();
-                // Ждем отпускания кнопки
-                while (HAL_GPIO_ReadPin(BTN_PORT, BTN2_PIN) == GPIO_PIN_RESET) {
-                    HAL_Delay(10);
+                uint32_t held_ms = now - btn2_press_time;
+                if (held_ms >= 1000) {
+                    // долгое нажатие → назад
+                    OLED_Settings_Back();
+                    // ждём отпускания
+                    while (HAL_GPIO_ReadPin(BTN_PORT, BTN2_PIN) == GPIO_PIN_RESET) HAL_Delay(10);
+                    btn2_press_time = 0;
+                    any_pressed = 1;
                 }
-                any_pressed = 1;
+            }
+        } else {
+            if (btn2_press_time != 0) {
+                // короткое нажатие → Select
+                if ((now - btn2_press_time) < 1000) {
+                    OLED_Settings_Select();
+                    any_pressed = 1;
+                }
+                btn2_press_time = 0;
             }
         }
 

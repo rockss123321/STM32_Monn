@@ -124,3 +124,22 @@ uint8_t Settings_Load_Rotation(void)
     if (bk_read_u32(BKP_MAGIC_REG) != BKP_MAGIC_VALUE) return 0;
     return (uint8_t)(bk_read_u32(BKP_ROT_REG) & 0x1U);
 }
+
+// Сброс всех backup регистров (очистка домена)
+void Settings_Clear_Backup(void)
+{
+    // Стираем основные используемые регистры
+    bk_write_u32(BKP_IP_REG0, 0);
+    bk_write_u32(BKP_MASK_REG1, 0);
+    bk_write_u32(BKP_GW_REG2, 0);
+    bk_write_u32(BKP_DHCP_REG3, 0);
+    bk_write_u32(BKP_ROT_REG, 0);
+
+    // Стираем SNMP строки
+    for (int i = 0; i < BKP_SNMP_REG_COUNT * 3; ++i) {
+        bk_write_u32(BKP_SNMP_BASE + i, 0);
+    }
+
+    // Сбрасываем magic, чтобы загрузка считала, что backup пуст
+    bk_write_u32(BKP_MAGIC_REG, 0);
+}
