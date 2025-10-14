@@ -179,9 +179,9 @@ static void OLED_Draw_Confirm(void)
         }
         case CONFIRM_FACTORY_RESET: {
             ssd1306_SetCursor(0, 14);
-            ssd1306_WriteString("Factory reset", *menu_font, White);
+            ssd1306_WriteString("Reset to", *menu_font, White);
             ssd1306_SetCursor(0, 28);
-            ssd1306_WriteString("Defaults & reboot", *menu_font, White);
+            ssd1306_WriteString("factory settings", *menu_font, White);
             break;
         }
         default:
@@ -261,24 +261,23 @@ static void Sync_From_Netif(void)
 // Общий рендер для кнопок Да/Нет внизу
 static void OLED_Draw_YesNo(void)
 {
-    const uint8_t y = 52;
+    const uint8_t y = 53;
     const uint8_t h = (uint8_t)(menu_font->height);
-    // Полоска под кнопки
-    ssd1306_DrawRectangle(0, y - 1, SSD1306_ROTATED_WIDTH - 1, y + h + 1, White);
+    // Убрали рамку, чтобы не перекрывать текст
     if (confirm_selection == 0) {
         // Yes выделено
-        ssd1306_FillRect(2, y, 28, h, White);
-        ssd1306_SetCursor(5, y);
+        ssd1306_FillRect(0, y, 30, h, White);
+        ssd1306_SetCursor(2, y);
         ssd1306_WriteString("Yes", *menu_font, Black);
 
-        ssd1306_SetCursor(36, y);
+        ssd1306_SetCursor(34, y);
         ssd1306_WriteString("No", *menu_font, White);
     } else {
-        ssd1306_SetCursor(5, y);
+        ssd1306_SetCursor(2, y);
         ssd1306_WriteString("Yes", *menu_font, White);
 
-        ssd1306_FillRect(34, y, 24, h, White);
-        ssd1306_SetCursor(36, y);
+        ssd1306_FillRect(32, y, 26, h, White);
+        ssd1306_SetCursor(34, y);
         ssd1306_WriteString("No", *menu_font, Black);
     }
 }
@@ -487,7 +486,7 @@ static void OLED_Draw_Edit()
     ssd1306_SetCursor(0, SH - 20);
     ssd1306_WriteString("Change", *menu_font, White);
     ssd1306_SetCursor(0, SH - 10);
-    ssd1306_WriteString("Mid - Next", *menu_font, White);
+    ssd1306_WriteString("Mid- Next", *menu_font, White);
 
     ssd1306_UpdateScreen();
 }
@@ -654,10 +653,11 @@ void OLED_Settings_Select(void)
     if (submenu_active) {
         if (submenu_type == SUBMENU_DHCP) {
             dhcp_on = (submenu_index == 0);
-            confirm_active = true;
-            confirm_selection = 0;
-            confirm_type = dhcp_on ? CONFIRM_DHCP_ENABLE : CONFIRM_DHCP_DISABLE;
-            OLED_Draw_Confirm();
+            // Применяем без подтверждения
+            DHCP_Apply();
+            submenu_active = false;
+            submenu_type = SUBMENU_NONE;
+            OLED_Settings_Draw();
         } else if (submenu_type == SUBMENU_ROTATION) {
             uint8_t rot180 = (submenu_index == 1) ? 1 : 0;
             ssd1306_SetRotation180(rot180);
