@@ -32,10 +32,19 @@
  * px = physical_x = W - 1 - ly
  * py = physical_y = lx
  */
-// Поворот 90° против часовой стрелки
+// Optional 180° flip flag (in addition to the base 90° layout)
+static uint8_t g_rotation_180 = 0;
+
+// Map logical to physical with base 90° rotation plus optional 180° flip
 static inline void ssd1306_map_logical_to_physical(uint8_t lx, uint8_t ly, uint8_t *px, uint8_t *py) {
-    *px = ly;
-    *py = (uint8_t)(SSD1306_HEIGHT - 1 - lx);
+    if (!g_rotation_180) {
+        *px = ly;
+        *py = (uint8_t)(SSD1306_HEIGHT - 1 - lx);
+    } else {
+        // Additional 180° flip: mirror both axes relative to the 90° mapping
+        *px = (uint8_t)(SSD1306_WIDTH - 1 - ly);
+        *py = lx;
+    }
 }
 
 
@@ -205,6 +214,14 @@ void ssd1306_Init(void) {
     SSD1306.CurrentY = 0;
 
     SSD1306.Initialized = 1;
+}
+
+void ssd1306_SetRotation180(uint8_t enable) {
+    g_rotation_180 = (enable ? 1 : 0);
+}
+
+uint8_t ssd1306_GetRotation180(void) {
+    return g_rotation_180;
 }
 
 /* Fill the whole screen with the given color (physical buffer fill) */

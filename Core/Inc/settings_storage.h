@@ -19,6 +19,13 @@ void Settings_Load_From_Backup(ip4_addr_t *ip, ip4_addr_t *mask, ip4_addr_t *gw,
                               char *snmp_write, int snmp_write_size,
                               char *snmp_trap, int snmp_trap_size);
 
+// Rotation flag stored in backup domain (0: 0°, 1: 180°)
+void Settings_Save_Rotation(uint8_t rot180);
+uint8_t Settings_Load_Rotation(void);
+
+// Clear all used backup registers (factory cleanup)
+void Settings_Clear_Backup(void);
+
 
 #ifdef __cplusplus
 }

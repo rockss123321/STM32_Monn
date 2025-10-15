@@ -137,6 +137,9 @@ void ApplySNMPSettings(void) {
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 volatile uint8_t g_is_authenticated = 0; // глобальный флаг авторизации (упрощённая сессия)
+// TTL авторизационной сессии для httpd (мс). Используется в fs.c (LWIP httpd).
+// Если на вашей стороне fs.c ожидает этот символ, задаём разумное значение по умолчанию.
+uint32_t g_auth_ttl_ms = 600000; // 10 минут
 
 
 ip4_addr_t new_ip, new_mask, new_gw;
@@ -632,6 +635,11 @@ int main(void)
   // Инициализация логина/пароля (admin/admin по умолчанию)
   Creds_Init();
   Settings_Init();
+  // Load and apply display rotation before drawing anything
+  {
+    uint8_t rot180 = Settings_Load_Rotation();
+    ssd1306_SetRotation180(rot180);
+  }
 
   ip4_addr_t bk_ip, bk_mask, bk_gw;
   uint8_t bk_dhcp;
@@ -650,6 +658,15 @@ int main(void)
       } else {
           netif_set_addr(&gnetif, &bk_ip, &bk_mask, &bk_gw);
       }
+      netif_set_up(&gnetif);
+  } else {
+      // Backup пуст — применяем заводские значения (статический IP)
+      ip4_addr_t def_ip, def_mask, def_gw;
+      IP4_ADDR(&def_ip, 192,168,0,254);
+      IP4_ADDR(&def_mask, 255,255,255,0);
+      IP4_ADDR(&def_gw, 192,168,0,1);
+      netif_set_down(&gnetif);
+      netif_set_addr(&gnetif, &def_ip, &def_mask, &def_gw);
       netif_set_up(&gnetif);
   }
 

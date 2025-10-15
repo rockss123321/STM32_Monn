@@ -215,6 +215,18 @@ SSD1306_Error_t ssd1306_FillBuffer(uint8_t* buf, uint32_t len);
 
 void ssd1306_FillRect(uint8_t x, uint8_t y, uint8_t w, uint8_t h, SSD1306_COLOR color);
 
+  /**
+   * @brief Enable or disable 180° rotation relative to the current 90° layout.
+   * @param enable 0 to use default orientation, non-zero to rotate 180°.
+   */
+  void ssd1306_SetRotation180(uint8_t enable);
+
+  /**
+   * @brief Get current 180° rotation flag.
+   * @return 1 if 180° rotation is enabled, 0 otherwise.
+   */
+  uint8_t ssd1306_GetRotation180(void);
+
 _END_STD_C
 
 #endif // __SSD1306_H__
