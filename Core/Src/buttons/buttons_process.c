@@ -121,8 +121,10 @@ void Buttons_Process(void) {
 
         // Обработка кнопки 2 (Выбор / Долгое нажатие = Назад)
         if (HAL_GPIO_ReadPin(BTN_PORT, BTN2_PIN) == GPIO_PIN_RESET) {
-            // фиксируем момент первого нажатия
-            if (btn2_press_time == 0) btn2_press_time = now;
+            // фиксируем момент первого нажатия (debounce)
+            if (btn2_press_time == 0) {
+                btn2_press_time = now;
+            }
             HAL_Delay(20);
             if (HAL_GPIO_ReadPin(BTN_PORT, BTN2_PIN) == GPIO_PIN_RESET) {
                 uint32_t held_ms = now - btn2_press_time;
@@ -138,7 +140,8 @@ void Buttons_Process(void) {
         } else {
             if (btn2_press_time != 0) {
                 // короткое нажатие → Select
-                if ((now - btn2_press_time) < 1000) {
+                uint32_t press_ms = HAL_GetTick() - btn2_press_time;
+                if (press_ms >= 50 && press_ms < 1000) {
                     OLED_Settings_Select();
                     any_pressed = 1;
                 }
@@ -202,7 +205,7 @@ void Buttons_Process(void) {
     } else {
         if (btn2_held) {
             uint32_t press_time = (HAL_GetTick() - btn2_press_time);
-            if (press_time < 1000) {
+            if (press_time >= 50 && press_time < 1000) {
                 // Короткое нажатие → открыть/закрыть Settings
                 if (!settings_active) {
                     settings_active = 1;
