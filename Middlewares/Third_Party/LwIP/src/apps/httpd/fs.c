@@ -221,6 +221,12 @@ int fs_open_custom(struct fs_file *file, const char *name)
       return 1;
     }
   }
+
+  /* Разрешаем прямой доступ к CGI-скриптам (в т.ч. /login.cgi) без авторизации
+     иначе браузер может уйти в цикл редиректов при GET-логине */
+  if (strstr(name, ".cgi") != NULL) {
+    return 0;
+  }
   return 0;
 }
 
