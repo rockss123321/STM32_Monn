@@ -150,10 +150,12 @@ uint8_t apply_network_settings = 0;  // флаг применения
 // Прототипы CGI-функций
 const char * NET_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], char *pcValue[]);
 const char * LOGIN_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], char *pcValue[]);
+const char * CREDS_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], char *pcValue[]);
 
 // Таблица CGI
 const tCGI NET_CGI = {"/set_network.cgi", NET_CGI_Handler};
 const tCGI LOGIN_CGI = {"/login.cgi", LOGIN_CGI_Handler};
+tCGI CREDS_CGI = {"/set_creds.cgi", CREDS_CGI_Handler};
 tCGI CGI_TAB[6];
 
 const char* NET_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], char *pcValue[])
@@ -279,6 +281,23 @@ const char* SNMP_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], char *
     }
     apply_snmp_settings = 1; // ставим флаг применения в main()
     return "/settings.html";  // редирект обратно
+}
+
+// CGI для смены логина/пароля (GET, user/pass, до 8 символов)
+const char * CREDS_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], char *pcValue[])
+{
+    char user[9] = {0}, pass[9] = {0};
+    for (int i = 0; i < iNumParams; i++) {
+        if (strcmp(pcParam[i], "user") == 0 && pcValue[i]) {
+            strncpy(user, pcValue[i], sizeof(user)-1);
+        } else if (strcmp(pcParam[i], "pass") == 0 && pcValue[i]) {
+            strncpy(pass, pcValue[i], sizeof(pass)-1);
+        }
+    }
+    // обрежем на стороне сервера до 8 ascii-символов
+    user[8] = 0; pass[8] = 0;
+    Creds_Update(user, pass);
+    return "/settings.html";
 }
 
 // Таблица CGI для SNMP
@@ -692,7 +711,8 @@ int main(void)
   CGI_TAB[3] = SNMP_CGI;
   CGI_TAB[4] = FW_UPDATE_CGI;
   CGI_TAB[5] = LOGIN_CGI;
-  http_set_cgi_handlers(CGI_TAB, 6); // количество зарегистрированных CGI
+  CGI_TAB[6] = CREDS_CGI;
+  http_set_cgi_handlers(CGI_TAB, 7); // количество зарегистрированных CGI
   snmp_init();
 
   snmp_set_mibs(mib_array, snmp_num_mibs);
