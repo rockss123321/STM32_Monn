@@ -216,6 +216,8 @@ void Buttons_Process(void) {
                     OLED_DrawABPage();
                 }
             }
+            // Сбросим время нажатия, чтобы избежать двойной обработки при входе в Settings
+            btn2_press_time = 0;
         }
         btn2_held = 0;
     }

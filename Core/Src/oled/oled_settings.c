@@ -172,7 +172,7 @@ static void OLED_Draw_Confirm(void)
         }
         case CONFIRM_RESET_MCU: {
             ssd1306_SetCursor(0, 14);
-            ssd1306_WriteString("Controller", *menu_font, White);
+            ssd1306_WriteString("MCU", *menu_font, White);
             ssd1306_SetCursor(0, 28);
             ssd1306_WriteString("will reboot", *menu_font, White);
             break;
