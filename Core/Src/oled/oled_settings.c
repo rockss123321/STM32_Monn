@@ -738,17 +738,17 @@ void OLED_Settings_Select(void)
             OLED_Draw_Submenu();
             break;
 
-        case 4: // Reboot -> Factory Reset (с подтверждением в общем диалоге)
-            confirm_active = true;
-            confirm_selection = 0;
-            confirm_type = CONFIRM_FACTORY_RESET;
-            OLED_Draw_Confirm();
-            break;
-
-        case 5: // Reset -> Программная перезагрузка MCU (с подтверждением)
+        case 4: // Reboot -> Программная перезагрузка MCU (без доп. действий)
             confirm_active = true;
             confirm_selection = 0;
             confirm_type = CONFIRM_RESET_MCU;
+            OLED_Draw_Confirm();
+            break;
+
+        case 5: // Reset -> Factory Reset (заводские настройки)
+            confirm_active = true;
+            confirm_selection = 0;
+            confirm_type = CONFIRM_FACTORY_RESET;
             OLED_Draw_Confirm();
             break;
 
