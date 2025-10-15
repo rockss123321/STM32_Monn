@@ -487,19 +487,15 @@ const tCGI FW_UPDATE_CGI = {"/fw_update.cgi", FW_Update_CGI_Handler};
 // GET-логин через CGI-параметры user/pass
 const char* LOGIN_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], char *pcValue[])
 {
-    char user[32] = {0};
     char pass[32] = {0};
     for (int i = 0; i < iNumParams; i++) {
-        if (strcmp(pcParam[i], "user") == 0 && pcValue[i] && pcValue[i][0]) {
-            strncpy(user, pcValue[i], sizeof(user) - 1);
-        } else if (strcmp(pcParam[i], "pass") == 0 && pcValue[i] && pcValue[i][0]) {
+        if (strcmp(pcParam[i], "pass") == 0 && pcValue[i] && pcValue[i][0]) {
             strncpy(pass, pcValue[i], sizeof(pass) - 1);
         }
     }
-    url_decode(user, user);
     url_decode(pass, pass);
     extern volatile uint8_t g_is_authenticated;
-    g_is_authenticated = (user[0] && pass[0] && Creds_CheckLogin(user, pass)) ? 1 : 0;
+    g_is_authenticated = (pass[0] && Creds_CheckLogin(NULL, pass)) ? 1 : 0;
     return g_is_authenticated ? "/index.html" : "/login_failed.html";
 }
 
