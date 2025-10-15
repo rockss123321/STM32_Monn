@@ -22,4 +22,7 @@ void OLED_Settings_ButtonHeld(bool held);
 
 void OLED_UpdateDisplay(void);
 
+// Возврат назад (из подтверждения/подменю/редактирования к меню; из меню — выход)
+void OLED_Settings_Back(void);
+
 #endif // OLED_SETTINGS_H

@@ -80,8 +80,7 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../Core/Inc/oled/oled_abpage.h ../Core/Inc/buttons/buttons_process.h \
  ../Core/Inc/oled/oled_display.h ../Core/Inc/oled/oled_settings.h \
  ../Core/Inc/credentials.h ../Core/Inc/buttons/buttons.h \
- ../Core/Inc/settings_storage.h ../Core/Inc/auth.h \
- ../Core/Inc/snmp/custom_mib.h
+ ../Core/Inc/settings_storage.h ../Core/Inc/snmp/custom_mib.h
 ../Core/Inc/main.h:
 ../Drivers/STM32F2xx_HAL_Driver/Inc/stm32f2xx_hal.h:
 ../Core/Inc/stm32f2xx_hal_conf.h:
@@ -170,5 +169,4 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../Core/Inc/credentials.h:
 ../Core/Inc/buttons/buttons.h:
 ../Core/Inc/settings_storage.h:
-../Core/Inc/auth.h:
 ../Core/Inc/snmp/custom_mib.h:

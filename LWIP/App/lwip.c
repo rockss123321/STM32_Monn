@@ -94,7 +94,8 @@ void MX_LWIP_Init(void)
   netif_set_link_callback(&gnetif, ethernetif_update_config);
 
 /* USER CODE BEGIN 3 */
-
+  /* Force an initial link poll to catch late cable insertions right after boot */
+  ethernetif_set_link(&gnetif);
 /* USER CODE END 3 */
 }
 

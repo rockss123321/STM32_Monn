@@ -1,7 +1,10 @@
-../Core/Src/settings_storage.c:24:13:bk_write_u32	16	static
-../Core/Src/settings_storage.c:28:17:bk_read_u32	16	static
-../Core/Src/settings_storage.c:32:13:bk_write_string	56	static
-../Core/Src/settings_storage.c:48:13:bk_read_string	48	static
-../Core/Src/settings_storage.c:64:6:Settings_Init	16	static
-../Core/Src/settings_storage.c:70:6:Settings_Save_To_Backup	24	static
-../Core/Src/settings_storage.c:87:6:Settings_Load_From_Backup	40	static
+../Core/Src/settings_storage.c:18:13:bk_write_u32	16	static
+../Core/Src/settings_storage.c:22:17:bk_read_u32	16	static
+../Core/Src/settings_storage.c:26:13:bk_write_string	56	static
+../Core/Src/settings_storage.c:42:13:bk_read_string	48	static
+../Core/Src/settings_storage.c:58:6:Settings_Init	16	static
+../Core/Src/settings_storage.c:64:6:Settings_Save_To_Backup	24	static
+../Core/Src/settings_storage.c:80:6:Settings_Load_From_Backup	64	static
+../Core/Src/settings_storage.c:115:6:Settings_Save_Rotation	16	static
+../Core/Src/settings_storage.c:122:9:Settings_Load_Rotation	8	static
+../Core/Src/settings_storage.c:129:6:Settings_Clear_Backup	16	static

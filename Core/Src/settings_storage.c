@@ -3,22 +3,16 @@
 
 extern RTC_HandleTypeDef hrtc;
 
-/* Backup-регистры STM32F2: RTC_BKP_DR0..RTC_BKP_DR19 (20 шт.)
- * ВНИМАНИЕ: DR0..DR8 используются модулем credentials.c
- * Здесь занимаем DR9..DR19 под сетевые и SNMP (усечённые) настройки.
- */
-#define BKP_IP_REG0           RTC_BKP_DR9   /* IP */
-#define BKP_MASK_REG1         RTC_BKP_DR10  /* Mask */
-#define BKP_GW_REG2           RTC_BKP_DR11  /* Gateway */
-#define BKP_DHCP_REG3         RTC_BKP_DR12  /* DHCP on/off */
-
-/* Усечённое хранение SNMP community: по 8 байт на строку = 2 регистра */
-#define BKP_SNMP_READ_BASE    RTC_BKP_DR13  /* DR13,DR14 */
-#define BKP_SNMP_WRITE_BASE   RTC_BKP_DR15  /* DR15,DR16 */
-#define BKP_SNMP_TRAP_BASE    RTC_BKP_DR17  /* DR17,DR18 */
-
-#define BKP_MAGIC_REG         RTC_BKP_DR19
-#define BKP_MAGIC_VALUE       0xBEEFCAFE
+/* Backup-регистры STM32F2: RTC_BKP_DR0..RTC_BKP_DR19 (20 шт.) */
+#define BKP_IP_REG0          RTC_BKP_DR1
+#define BKP_MASK_REG1        RTC_BKP_DR2
+#define BKP_GW_REG2          RTC_BKP_DR3
+#define BKP_DHCP_REG3        RTC_BKP_DR4
+#define BKP_SNMP_BASE        RTC_BKP_DR5
+#define BKP_SNMP_REG_COUNT   4   // 8 регистров на строку (~32 байта)
+#define BKP_MAGIC_REG        RTC_BKP_DR19
+#define BKP_ROT_REG          RTC_BKP_DR18
+#define BKP_MAGIC_VALUE      0xBEEFCAFE
 
 /* --- Вспомогательные функции --- */
 static void bk_write_u32(uint32_t reg, uint32_t value) {
@@ -75,10 +69,9 @@ void Settings_Save_To_Backup(ip4_addr_t ip, ip4_addr_t mask, ip4_addr_t gw, uint
     bk_write_u32(BKP_GW_REG2, gw.addr);
     bk_write_u32(BKP_DHCP_REG3, dhcp ? 1 : 0);
 
-    /* Сохраняем только первые 8 символов каждого community (2 регистра по 4 байта) */
-    bk_write_string(BKP_SNMP_READ_BASE,  snmp_read  ? snmp_read  : "", 2);
-    bk_write_string(BKP_SNMP_WRITE_BASE, snmp_write ? snmp_write : "", 2);
-    bk_write_string(BKP_SNMP_TRAP_BASE,  snmp_trap  ? snmp_trap  : "", 2);
+    bk_write_string(BKP_SNMP_BASE + 0, snmp_read  ? snmp_read  : "", BKP_SNMP_REG_COUNT);
+    bk_write_string(BKP_SNMP_BASE + BKP_SNMP_REG_COUNT, snmp_write ? snmp_write : "", BKP_SNMP_REG_COUNT);
+    bk_write_string(BKP_SNMP_BASE + BKP_SNMP_REG_COUNT * 2, snmp_trap  ? snmp_trap  : "", BKP_SNMP_REG_COUNT);
 
     bk_write_u32(BKP_MAGIC_REG, BKP_MAGIC_VALUE); // Обязательно ставим magic
 }
@@ -106,14 +99,47 @@ void Settings_Load_From_Backup(ip4_addr_t *ip, ip4_addr_t *mask, ip4_addr_t *gw,
     if (gw)    gw->addr   = bk_read_u32(BKP_GW_REG2);
     if (dhcp)  *dhcp      = (uint8_t)(bk_read_u32(BKP_DHCP_REG3) & 0xFF);
 
-    char tmp[9]; /* читаем до 8 символов */
+    char tmp[33];
 
-    bk_read_string(BKP_SNMP_READ_BASE, tmp, 2);
+    bk_read_string(BKP_SNMP_BASE + 0, tmp, BKP_SNMP_REG_COUNT);
     if (snmp_read) { strncpy(snmp_read, tmp, snmp_read_size-1); snmp_read[snmp_read_size-1]=0; }
 
-    bk_read_string(BKP_SNMP_WRITE_BASE, tmp, 2);
+    bk_read_string(BKP_SNMP_BASE + BKP_SNMP_REG_COUNT, tmp, BKP_SNMP_REG_COUNT);
     if (snmp_write) { strncpy(snmp_write, tmp, snmp_write_size-1); snmp_write[snmp_write_size-1]=0; }
 
-    bk_read_string(BKP_SNMP_TRAP_BASE, tmp, 2);
+    bk_read_string(BKP_SNMP_BASE + BKP_SNMP_REG_COUNT * 2, tmp, BKP_SNMP_REG_COUNT);
     if (snmp_trap) { strncpy(snmp_trap, tmp, snmp_trap_size-1); snmp_trap[snmp_trap_size-1]=0; }
+}
+
+// --- Rotation flag helpers ---
+void Settings_Save_Rotation(uint8_t rot180)
+{
+    bk_write_u32(BKP_ROT_REG, (rot180 ? 1U : 0U));
+    // Ensure backup domain marked as valid
+    bk_write_u32(BKP_MAGIC_REG, BKP_MAGIC_VALUE);
+}
+
+uint8_t Settings_Load_Rotation(void)
+{
+    if (bk_read_u32(BKP_MAGIC_REG) != BKP_MAGIC_VALUE) return 0;
+    return (uint8_t)(bk_read_u32(BKP_ROT_REG) & 0x1U);
+}
+
+// Сброс всех backup регистров (очистка домена)
+void Settings_Clear_Backup(void)
+{
+    // Стираем основные используемые регистры
+    bk_write_u32(BKP_IP_REG0, 0);
+    bk_write_u32(BKP_MASK_REG1, 0);
+    bk_write_u32(BKP_GW_REG2, 0);
+    bk_write_u32(BKP_DHCP_REG3, 0);
+    bk_write_u32(BKP_ROT_REG, 0);
+
+    // Стираем SNMP строки
+    for (int i = 0; i < BKP_SNMP_REG_COUNT * 3; ++i) {
+        bk_write_u32(BKP_SNMP_BASE + i, 0);
+    }
+
+    // Сбрасываем magic, чтобы загрузка считала, что backup пуст
+    bk_write_u32(BKP_MAGIC_REG, 0);
 }

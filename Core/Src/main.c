@@ -35,7 +35,6 @@
 #include "signal_processor.h"
 #include "ssd1306_driver/ssd1306.h"
 #include <string.h>
-#include <strings.h>
 #include "ssd1306_driver/ssd1306_fonts.h"
 #include "oled/oled_netinfo.h"
 #include "oled/oled_abpage.h"
@@ -45,7 +44,6 @@
 #include "credentials.h"
 #include "buttons/buttons.h"
 #include "settings_storage.h"
-#include "auth.h"
 #include <ctype.h>
 /* USER CODE END Includes */
 
@@ -138,15 +136,10 @@ void ApplySNMPSettings(void) {
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-volatile uint8_t g_is_authenticated = 0; // глобальный флаг авторизации (устаревший, оставлен для совместимости)
-volatile uint32_t g_auth_deadline_ms = 0; // срок действия авторизации (общий, не используется при IP-режиме)
-
-#ifndef AUTH_TTL_MS
-#define AUTH_TTL_MS (15U * 60U * 1000U) // 15 минут
-#endif
-
-// Глобальная настраиваемая длительность сессии (можно изменить в рантайме)
-uint32_t g_auth_ttl_ms = AUTH_TTL_MS;
+volatile uint8_t g_is_authenticated = 0; // глобальный флаг авторизации (упрощённая сессия)
+// TTL авторизационной сессии для httpd (мс). Используется в fs.c (LWIP httpd).
+// Если на вашей стороне fs.c ожидает этот символ, задаём разумное значение по умолчанию.
+uint32_t g_auth_ttl_ms = 600000; // 10 минут
 
 
 ip4_addr_t new_ip, new_mask, new_gw;
@@ -205,8 +198,7 @@ const char* DATE_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], char *
             }
         }
     }
-    // Возвращаемся на страницу настроек
-    return "/settings.html";
+    // --- сразу сохраняем в backup (если RTC уже инициализирован) ---
 }
 
 const tCGI DATE_CGI = {"/set_date.cgi", DATE_CGI_Handler};
@@ -222,29 +214,18 @@ const char* TIME_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], char *
     {
         if(strcmp(pcParam[i], "time") == 0 && strlen(pcValue[i]) >= 5)
         {
-            // Декодируем URL-параметр (важно для '%3A' вместо ':')
-            char decoded[16] = {0};
-            url_decode(decoded, pcValue[i]);
-
             // Простой парсинг без sscanf
-            char *colon = strchr(decoded, ':');
+            char *colon = strchr(pcValue[i], ':');
             if(colon != NULL)
             {
-                // Берем первые 2 цифры как часы (пропуская нецифровые)
+                // Берем первые 2 символа как часы
                 char hour_str[3] = {0};
-                int hs = 0;
-                for (const char* p = decoded; *p && hs < 2; ++p) {
-                    if (*p >= '0' && *p <= '9') hour_str[hs++] = *p;
-                    if (*p == ':') break;
-                }
+                strncpy(hour_str, pcValue[i], 2);
                 hour_str[2] = '\0';
 
-                // Берем 2 цифры после двоеточия как минуты
+                // Берем 2 символа после двоеточия как минуты
                 char min_str[3] = {0};
-                int ms = 0;
-                for (const char* p = colon + 1; *p && ms < 2; ++p) {
-                    if (*p >= '0' && *p <= '9') min_str[ms++] = *p;
-                }
+                strncpy(min_str, colon + 1, 2);
                 min_str[2] = '\0';
 
                 int h = atoi(hour_str);
@@ -499,17 +480,8 @@ const char* LOGIN_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], char 
     url_decode(user, user);
     url_decode(pass, pass);
     extern volatile uint8_t g_is_authenticated;
-    extern volatile uint32_t g_auth_deadline_ms;
-    extern uint32_t g_auth_ttl_ms;
     g_is_authenticated = (user[0] && pass[0] && Creds_CheckLogin(user, pass)) ? 1 : 0;
-    if (g_is_authenticated) {
-        uint32_t now = HAL_GetTick();
-        g_auth_deadline_ms = now + g_auth_ttl_ms; /* legacy */
-        /* создаём cookie-сессию; заголовок Set-Cookie вернётся при следующем fs_open */
-        (void)Auth_CreateSessionForCurrentRequest(now, g_auth_ttl_ms);
-        return "/index.html";
-    }
-    return "/login_failed.html";
+    return g_is_authenticated ? "/index.html" : "/login_failed.html";
 }
 
 void url_decode(char *dst, const char *src)
@@ -663,6 +635,11 @@ int main(void)
   // Инициализация логина/пароля (admin/admin по умолчанию)
   Creds_Init();
   Settings_Init();
+  // Load and apply display rotation before drawing anything
+  {
+    uint8_t rot180 = Settings_Load_Rotation();
+    ssd1306_SetRotation180(rot180);
+  }
 
   ip4_addr_t bk_ip, bk_mask, bk_gw;
   uint8_t bk_dhcp;
@@ -682,6 +659,15 @@ int main(void)
           netif_set_addr(&gnetif, &bk_ip, &bk_mask, &bk_gw);
       }
       netif_set_up(&gnetif);
+  } else {
+      // Backup пуст — применяем заводские значения (статический IP)
+      ip4_addr_t def_ip, def_mask, def_gw;
+      IP4_ADDR(&def_ip, 192,168,0,254);
+      IP4_ADDR(&def_mask, 255,255,255,0);
+      IP4_ADDR(&def_gw, 192,168,0,1);
+      netif_set_down(&gnetif);
+      netif_set_addr(&gnetif, &def_ip, &def_mask, &def_gw);
+      netif_set_up(&gnetif);
   }
 
   /* Инициализируем SNMP community из backup */
@@ -697,8 +683,6 @@ int main(void)
   httpd_init();
 
   httpd_ssi_init_custom();
-
-  Auth_Init();
 
   // Регистрация CGI
 
@@ -773,12 +757,11 @@ int main(void)
 	        sDate.Date  = new_day;
 	        sDate.WeekDay = RTC_WEEKDAY_TUESDAY;
 
-        if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BIN) == HAL_OK)
-        {
-            /* После установки даты читаем время (разблокировка shadow) */
-            RTC_TimeTypeDef t;
-            HAL_RTC_GetTime(&hrtc, &t, RTC_FORMAT_BIN);
-        }
+	        if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BIN) == HAL_OK)
+	        {
+	            RTC_TimeTypeDef t;
+	            HAL_RTC_GetTime(&hrtc, &t, RTC_FORMAT_BIN);
+	        }
 	    }
 
 
@@ -795,12 +778,10 @@ int main(void)
 	        sTime.StoreOperation = RTC_STOREOPERATION_RESET;
 
         if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BIN) == HAL_OK)
-        {
-            /* Согласно HAL, после SetTime нужно прочитать дату, чтобы разблокировать shadow
-               регистры и реально применить время */
-            RTC_DateTypeDef d;
-            HAL_RTC_GetDate(&hrtc, &d, RTC_FORMAT_BIN);
-        }
+	        {
+	            RTC_DateTypeDef d;
+	            HAL_RTC_GetDate(&hrtc, &d, RTC_FORMAT_BIN);
+	        }
 	    }
 
 
@@ -1012,10 +993,8 @@ static void MX_RTC_Init(void)
         Error_Handler();
     }
 
-    /* Проверяем, был ли RTC уже инициализирован.
-       Ранее использовался DR0, но он занят модулем credentials.
-       Используем DR19: если там 0, считаем, что RTC не инициализирован. */
-    if (HAL_RTCEx_BKUPRead(&hrtc, RTC_BKP_DR19) == 0x00000000U)
+    /* Проверяем, был ли RTC уже инициализирован */
+    if (HAL_RTCEx_BKUPRead(&hrtc, RTC_BKP_DR0) != 0x32F2)
     {
         // --- Первый запуск ---
         sTime.Hours = 0;
@@ -1031,7 +1010,7 @@ static void MX_RTC_Init(void)
         sDate.Year = 25;
         HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
 
-        HAL_RTCEx_BKUPWrite(&hrtc, RTC_BKP_DR19, 0x32F2); // 💾 флаг инициализации RTC
+        HAL_RTCEx_BKUPWrite(&hrtc, RTC_BKP_DR0, 0x32F2); // 💾 флаг инициализации
     }
     else
     {
