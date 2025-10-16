@@ -19,11 +19,11 @@
   <main>
     <div class="header">Bonch-ATS Monitoring — Настройки</div>
 
-      <div class="tabs">
-      <div class="tab active" data-tab="network">Сеть</div>
-      <div class="tab" data-tab="datetime">Дата и время</div>
-        <div class="tab" data-tab="snmp">SNMP</div>
-        <div class="tab" data-tab="creds">Логин</div>
+    <div class="tabs">
+      <a href="#network" class="tab active" data-tab="network">Сеть</a>
+      <a href="#datetime" class="tab" data-tab="datetime">Дата и время</a>
+      <a href="#snmp" class="tab" data-tab="snmp">SNMP</a>
+      <a href="#creds" class="tab" data-tab="creds">Пароль</a>
     </div>
 
     <!-- Сеть -->
@@ -85,14 +85,11 @@
       </form>
     </div>
 
-      <!-- Логин/пароль -->
+      <!-- Пароль -->
       <div class="card tab-content" id="creds">
         <form id="creds-form" method="get" action="set_creds.cgi">
-          <label for="login-user">Логин (до 8 символов)</label>
-          <input id="login-user" name="user" class="input" type="text" maxlength="8" placeholder="admin">
-
-          <label for="login-pass">Пароль (до 8 символов)</label>
-          <input id="login-pass" name="pass" class="input" type="text" maxlength="8" placeholder="admin">
+          <label for="login-pass">Новый пароль (до 8 символов)</label>
+          <input id="login-pass" name="pass" class="input" type="password" maxlength="8" placeholder="••••••••">
 
           <div style="margin-top:12px;">
             <button type="submit" class="btn">Сохранить</button>
@@ -104,17 +101,33 @@
 
   <script>
     (function () {
-      // вкладки
-      const tabs = document.querySelectorAll('.tab');
+      // Табы с поддержкой hash (#network, #datetime, ...)
+      const tabs = document.querySelectorAll('.tabs .tab');
       const contents = document.querySelectorAll('.tab-content');
+      function activateTab(name) {
+        tabs.forEach(t => t.classList.remove('active'));
+        contents.forEach(c => c.classList.remove('active'));
+        const tabEl = Array.from(tabs).find(t => t.dataset.tab === name);
+        const panel = document.getElementById(name);
+        if (tabEl) tabEl.classList.add('active');
+        if (panel) panel.classList.add('active');
+      }
+      function setActiveFromHash() {
+        const hash = (location.hash || '#network').replace('#','');
+        activateTab(hash);
+      }
       tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-          tabs.forEach(t => t.classList.remove('active'));
-          contents.forEach(c => c.classList.remove('active'));
-          tab.classList.add('active');
-          document.getElementById(tab.dataset.tab).classList.add('active');
+        tab.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          const href = tab.getAttribute('href');
+          if (href) {
+            history.replaceState(null, '', href);
+            setActiveFromHash();
+          }
         });
       });
+      window.addEventListener('hashchange', setActiveFromHash);
+      setActiveFromHash();
 
       // формы
       const forms = [
@@ -198,7 +211,7 @@
           if (writeMatch) document.getElementById('snmp-write').value = writeMatch[1].trim();
           if (trapMatch) document.getElementById('snmp-trap').value = trapMatch[1].trim();
 
-          // Логин/пароль — не подставляем значения для безопасности
+          // Пароль — не подставляем значение для безопасности
         } catch (err) {
           console.error(err);
         }
