@@ -23,7 +23,7 @@
       <div class="tab active" data-tab="network">Сеть</div>
       <div class="tab" data-tab="datetime">Дата и время</div>
         <div class="tab" data-tab="snmp">SNMP</div>
-        <div class="tab" data-tab="creds">Логин</div>
+        <div class="tab" data-tab="creds">Пароль</div>
     </div>
 
     <!-- Сеть -->
@@ -85,14 +85,11 @@
       </form>
     </div>
 
-      <!-- Логин/пароль -->
+      <!-- Пароль -->
       <div class="card tab-content" id="creds">
         <form id="creds-form" method="get" action="set_creds.cgi">
-          <label for="login-user">Логин (до 8 символов)</label>
-          <input id="login-user" name="user" class="input" type="text" maxlength="8" placeholder="admin">
-
-          <label for="login-pass">Пароль (до 8 символов)</label>
-          <input id="login-pass" name="pass" class="input" type="text" maxlength="8" placeholder="admin">
+          <label for="login-pass">Новый пароль (до 8 символов)</label>
+          <input id="login-pass" name="pass" class="input" type="password" maxlength="8" placeholder="••••••••">
 
           <div style="margin-top:12px;">
             <button type="submit" class="btn">Сохранить</button>
@@ -198,7 +195,7 @@
           if (writeMatch) document.getElementById('snmp-write').value = writeMatch[1].trim();
           if (trapMatch) document.getElementById('snmp-trap').value = trapMatch[1].trim();
 
-          // Логин/пароль — не подставляем значения для безопасности
+          // Пароль — не подставляем значение для безопасности
         } catch (err) {
           console.error(err);
         }

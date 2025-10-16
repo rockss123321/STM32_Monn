@@ -51,23 +51,20 @@ void Creds_Init(void) {
     char p[9] = {0};
     backup_read_pass(p);
     if (p[0] == 0) {
-        creds.username[0] = 0; // username unused
         strncpy(creds.password, "admin", MAX_CRED_LEN-1);
         backup_write_pass(creds.password);
     } else {
         strncpy(creds.password, p, MAX_CRED_LEN-1);
         creds.password[MAX_CRED_LEN-1] = 0;
-        creds.username[0] = 0;
     }
 }
 
-bool Creds_CheckLogin(const char *user, const char *pass) {
-    (void)user; // username disabled
-    return (strncmp(pass, creds.password, MAX_CRED_LEN) == 0);
+bool Creds_CheckPassword(const char *pass) {
+    return (pass && strncmp(pass, creds.password, MAX_CRED_LEN) == 0);
 }
 
-void Creds_Update(const char *user, const char *pass) {
-    (void)user; // ignore username, only password used
+void Creds_UpdatePassword(const char *pass) {
+    if (!pass) return;
     strncpy(creds.password, pass, MAX_CRED_LEN-1);
     creds.password[MAX_CRED_LEN-1] = 0;
     backup_write_pass(creds.password);

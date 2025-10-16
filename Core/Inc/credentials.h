@@ -7,15 +7,14 @@
 #define MAX_CRED_LEN 9 /* up to 8 visible chars + NUL */
 
 typedef struct {
-    char username[MAX_CRED_LEN];
     char password[MAX_CRED_LEN];
     /* crc is not persisted in BKP anymore */
     uint32_t crc;
 } credentials_t;
 
 void     Creds_Init(void);
-bool     Creds_CheckLogin(const char *user, const char *pass);
-void     Creds_Update(const char *user, const char *pass);
+bool     Creds_CheckPassword(const char *pass);
+void     Creds_UpdatePassword(const char *pass);
 const credentials_t* Creds_Get(void);
 
 #endif

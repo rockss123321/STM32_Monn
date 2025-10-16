@@ -156,7 +156,8 @@ const char * CREDS_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], char
 const tCGI NET_CGI = {"/set_network.cgi", NET_CGI_Handler};
 const tCGI LOGIN_CGI = {"/login.cgi", LOGIN_CGI_Handler};
 tCGI CREDS_CGI = {"/set_creds.cgi", CREDS_CGI_Handler};
-tCGI CGI_TAB[6];
+/* Increased size to accommodate all handlers (NET, DATE, TIME, SNMP, FW, LOGIN, CREDS) */
+tCGI CGI_TAB[8];
 
 const char* NET_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], char *pcValue[])
 {
@@ -283,20 +284,18 @@ const char* SNMP_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], char *
     return "/settings.html";  // редирект обратно
 }
 
-// CGI для смены логина/пароля (GET, user/pass, до 8 символов)
+// CGI для смены пароля (GET, pass, до 8 символов). Логин удалён.
 const char * CREDS_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], char *pcValue[])
 {
-    char user[9] = {0}, pass[9] = {0};
+    char pass[9] = {0};
     for (int i = 0; i < iNumParams; i++) {
-        if (strcmp(pcParam[i], "user") == 0 && pcValue[i]) {
-            strncpy(user, pcValue[i], sizeof(user)-1);
-        } else if (strcmp(pcParam[i], "pass") == 0 && pcValue[i]) {
+        if (strcmp(pcParam[i], "pass") == 0 && pcValue[i]) {
             strncpy(pass, pcValue[i], sizeof(pass)-1);
         }
     }
     // обрежем на стороне сервера до 8 ascii-символов
-    user[8] = 0; pass[8] = 0;
-    Creds_Update(user, pass);
+    pass[8] = 0;
+    Creds_UpdatePassword(pass);
     return "/settings.html";
 }
 
@@ -484,22 +483,18 @@ const char* FW_Update_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], c
 
 const tCGI FW_UPDATE_CGI = {"/fw_update.cgi", FW_Update_CGI_Handler};
 
-// GET-логин через CGI-параметры user/pass
+// GET-логин через CGI-параметры pass (без user)
 const char* LOGIN_CGI_Handler(int iIndex, int iNumParams, char *pcParam[], char *pcValue[])
 {
-    char user[32] = {0};
     char pass[32] = {0};
     for (int i = 0; i < iNumParams; i++) {
-        if (strcmp(pcParam[i], "user") == 0 && pcValue[i] && pcValue[i][0]) {
-            strncpy(user, pcValue[i], sizeof(user) - 1);
-        } else if (strcmp(pcParam[i], "pass") == 0 && pcValue[i] && pcValue[i][0]) {
+        if (strcmp(pcParam[i], "pass") == 0 && pcValue[i] && pcValue[i][0]) {
             strncpy(pass, pcValue[i], sizeof(pass) - 1);
         }
     }
-    url_decode(user, user);
     url_decode(pass, pass);
     extern volatile uint8_t g_is_authenticated;
-    g_is_authenticated = (user[0] && pass[0] && Creds_CheckLogin(user, pass)) ? 1 : 0;
+    g_is_authenticated = (pass[0] && Creds_CheckPassword(pass)) ? 1 : 0;
     return g_is_authenticated ? "/index.html" : "/login_failed.html";
 }
 
