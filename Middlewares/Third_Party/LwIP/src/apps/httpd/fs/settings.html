@@ -19,11 +19,11 @@
   <main>
     <div class="header">Bonch-ATS Monitoring — Настройки</div>
 
-      <div class="tabs">
-      <div class="tab active" data-tab="network">Сеть</div>
-      <div class="tab" data-tab="datetime">Дата и время</div>
-        <div class="tab" data-tab="snmp">SNMP</div>
-        <div class="tab" data-tab="creds">Пароль</div>
+    <div class="tabs">
+      <a href="#network" class="tab active" data-tab="network">Сеть</a>
+      <a href="#datetime" class="tab" data-tab="datetime">Дата и время</a>
+      <a href="#snmp" class="tab" data-tab="snmp">SNMP</a>
+      <a href="#creds" class="tab" data-tab="creds">Пароль</a>
     </div>
 
     <!-- Сеть -->
@@ -101,17 +101,30 @@
 
   <script>
     (function () {
-      // вкладки
+      // Табы с поддержкой hash (#network, #datetime, ...)
       const tabs = document.querySelectorAll('.tab');
       const contents = document.querySelectorAll('.tab-content');
+      function activateTab(name) {
+        tabs.forEach(t => t.classList.remove('active'));
+        contents.forEach(c => c.classList.remove('active'));
+        const tabEl = Array.from(tabs).find(t => t.dataset.tab === name);
+        const panel = document.getElementById(name);
+        if (tabEl) tabEl.classList.add('active');
+        if (panel) panel.classList.add('active');
+      }
+      function setActiveFromHash() {
+        const hash = (location.hash || '#network').replace('#','');
+        activateTab(hash);
+      }
       tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-          tabs.forEach(t => t.classList.remove('active'));
-          contents.forEach(c => c.classList.remove('active'));
-          tab.classList.add('active');
-          document.getElementById(tab.dataset.tab).classList.add('active');
+        tab.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          const target = tab.getAttribute('href') || ('#' + tab.dataset.tab);
+          if (target) location.hash = target;
         });
       });
+      window.addEventListener('hashchange', setActiveFromHash);
+      setActiveFromHash();
 
       // формы
       const forms = [
