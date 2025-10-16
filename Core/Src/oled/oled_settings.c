@@ -172,9 +172,9 @@ static void OLED_Draw_Confirm(void)
         }
         case CONFIRM_RESET_MCU: {
             ssd1306_SetCursor(0, 14);
-            ssd1306_WriteString("Controller", *menu_font, White);
+            ssd1306_WriteString("MCU will", *menu_font, White);
             ssd1306_SetCursor(0, 28);
-            ssd1306_WriteString("will reboot", *menu_font, White);
+            ssd1306_WriteString("reboot", *menu_font, White);
             break;
         }
         case CONFIRM_FACTORY_RESET: {
@@ -224,11 +224,6 @@ static void OLED_Draw_Submenu(void)
         y += menu_font->height + vpad;
     }
 
-    // Подписи управления: боковые = Yes/No, средняя — Select
-    ssd1306_SetCursor(0, 52);
-    ssd1306_WriteString("Left/Right: Yes/No", *menu_font, White);
-    ssd1306_SetCursor(0, 52 + menu_font->height);
-    ssd1306_WriteString("Mid - Select", *menu_font, White);
 
     ssd1306_UpdateScreen();
 }
@@ -374,9 +369,7 @@ static bool OLED_Confirm(const char *msg)
     ssd1306_SetCursor(0, 0);
     ssd1306_WriteString((char*)msg, *menu_font, White);
     ssd1306_SetCursor(0, 16);
-    ssd1306_WriteString("Middle=OK", *menu_font, White);
-    ssd1306_SetCursor(0, 26);
-    ssd1306_WriteString("Left/Right=Cancel", *menu_font, White);
+    ssd1306_WriteString("Mid - OK", *menu_font, White);
     ssd1306_UpdateScreen();
 
     // Ждём нажатия

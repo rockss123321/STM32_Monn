@@ -4,11 +4,12 @@
 #include "stm32f2xx_hal.h"
 #include <stdbool.h>
 
-#define MAX_CRED_LEN 16
+#define MAX_CRED_LEN 9 /* up to 8 visible chars + NUL */
 
 typedef struct {
     char username[MAX_CRED_LEN];
     char password[MAX_CRED_LEN];
+    /* crc is not persisted in BKP anymore */
     uint32_t crc;
 } credentials_t;
 

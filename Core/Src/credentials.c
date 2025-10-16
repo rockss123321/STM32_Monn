@@ -6,8 +6,8 @@
 extern RTC_HandleTypeDef hrtc;   // <-- добавить
 
 
-#define BKP_BASE      RTC_BKP_DR0  // первый backup-регистр
-#define BKP_WORDS     (sizeof(credentials_t)/4)  // сколько слов займём
+/* Store only password, 8 chars: two BKP registers starting at DR17 */
+#define BKP_PASS_DR   RTC_BKP_DR17
 
 static credentials_t creds;
 
@@ -24,46 +24,53 @@ static uint32_t crc32_calc(const void *data, size_t len) {
     return ~crc;
 }
 
-static void backup_write(const credentials_t *c) {
-    const uint32_t *src = (const uint32_t*)c;
-    for (uint32_t i = 0; i < BKP_WORDS; i++) {
-        HAL_RTCEx_BKUPWrite(&hrtc, BKP_BASE + i, src[i]);
+static void backup_write_pass(const char *pass) {
+    uint32_t word = 0;
+    /* password: 8 chars max packed into 2 DRs */
+    for (int i = 0; i < 2; ++i) {
+        word = 0;
+        for (int b = 0; b < 4; ++b) {
+            int idx = i * 4 + b;
+            uint8_t ch = pass && pass[idx] ? (uint8_t)pass[idx] : 0;
+            word |= ((uint32_t)ch) << (8 * b);
+        }
+        HAL_RTCEx_BKUPWrite(&hrtc, (uint32_t)(BKP_PASS_DR + i), word);
     }
 }
 
-static void backup_read(credentials_t *c) {
-    uint32_t *dst = (uint32_t*)c;
-    for (uint32_t i = 0; i < BKP_WORDS; i++) {
-        dst[i] = HAL_RTCEx_BKUPRead(&hrtc, BKP_BASE + i);
+static void backup_read_pass(char *pass) {
+    for (int i = 0; i < 2; ++i) {
+        uint32_t w = HAL_RTCEx_BKUPRead(&hrtc, (uint32_t)(BKP_PASS_DR + i));
+        for (int b = 0; b < 4; ++b) pass[i*4 + b] = (char)((w >> (8*b)) & 0xFF);
     }
+    pass[8] = 0;
 }
 
 // публичные функции
 void Creds_Init(void) {
-    backup_read(&creds);
-
-    uint32_t crc = crc32_calc(&creds, sizeof(credentials_t) - sizeof(uint32_t));
-    if (crc != creds.crc) {
-        // дефолтные значения
-        strcpy(creds.username, "admin");
-        strcpy(creds.password, "admin");
-        creds.crc = crc32_calc(&creds, sizeof(credentials_t) - sizeof(uint32_t));
-        backup_write(&creds);
+    char p[9] = {0};
+    backup_read_pass(p);
+    if (p[0] == 0) {
+        creds.username[0] = 0; // username unused
+        strncpy(creds.password, "admin", MAX_CRED_LEN-1);
+        backup_write_pass(creds.password);
+    } else {
+        strncpy(creds.password, p, MAX_CRED_LEN-1);
+        creds.password[MAX_CRED_LEN-1] = 0;
+        creds.username[0] = 0;
     }
 }
 
 bool Creds_CheckLogin(const char *user, const char *pass) {
-    return (strncmp(user, creds.username, MAX_CRED_LEN) == 0 &&
-            strncmp(pass, creds.password, MAX_CRED_LEN) == 0);
+    (void)user; // username disabled
+    return (strncmp(pass, creds.password, MAX_CRED_LEN) == 0);
 }
 
 void Creds_Update(const char *user, const char *pass) {
-    strncpy(creds.username, user, MAX_CRED_LEN-1);
-    creds.username[MAX_CRED_LEN-1] = 0;
+    (void)user; // ignore username, only password used
     strncpy(creds.password, pass, MAX_CRED_LEN-1);
     creds.password[MAX_CRED_LEN-1] = 0;
-    creds.crc = crc32_calc(&creds, sizeof(credentials_t) - sizeof(uint32_t));
-    backup_write(&creds);
+    backup_write_pass(creds.password);
 }
 
 const credentials_t* Creds_Get(void) {
