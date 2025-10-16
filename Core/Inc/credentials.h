@@ -17,4 +17,14 @@ bool     Creds_CheckPassword(const char *pass);
 void     Creds_UpdatePassword(const char *pass);
 const credentials_t* Creds_Get(void);
 
+/* Backward-compatibility wrappers (username removed) */
+static inline bool Creds_CheckLogin(const char *user, const char *pass) {
+    (void)user;
+    return Creds_CheckPassword(pass);
+}
+static inline void Creds_Update(const char *user, const char *pass) {
+    (void)user;
+    Creds_UpdatePassword(pass);
+}
+
 #endif
