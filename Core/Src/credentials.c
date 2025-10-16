@@ -1,5 +1,6 @@
 #include "credentials.h"
 #include <string.h>
+#include <ctype.h>
 #include "main.h"   // там объявлен extern RTC_HandleTypeDef hrtc;
 
 
@@ -50,7 +51,16 @@ static void backup_read_pass(char *pass) {
 void Creds_Init(void) {
     char p[9] = {0};
     backup_read_pass(p);
-    if (p[0] == 0) {
+    /* Validate saved password: must be non-empty and printable ASCII */
+    bool valid = false;
+    if (p[0] != 0) {
+        valid = true;
+        for (int i = 0; i < 8 && p[i] != 0; ++i) {
+            unsigned char c = (unsigned char)p[i];
+            if (!isprint(c)) { valid = false; break; }
+        }
+    }
+    if (!valid) {
         strncpy(creds.password, "admin", MAX_CRED_LEN-1);
         backup_write_pass(creds.password);
     } else {
