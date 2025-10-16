@@ -102,7 +102,7 @@
   <script>
     (function () {
       // Табы с поддержкой hash (#network, #datetime, ...)
-      const tabs = document.querySelectorAll('.tab');
+      const tabs = document.querySelectorAll('.tabs .tab');
       const contents = document.querySelectorAll('.tab-content');
       function activateTab(name) {
         tabs.forEach(t => t.classList.remove('active'));
@@ -119,8 +119,11 @@
       tabs.forEach(tab => {
         tab.addEventListener('click', (ev) => {
           ev.preventDefault();
-          const target = tab.getAttribute('href') || ('#' + tab.dataset.tab);
-          if (target) location.hash = target;
+          const href = tab.getAttribute('href');
+          if (href) {
+            history.replaceState(null, '', href);
+            setActiveFromHash();
+          }
         });
       });
       window.addEventListener('hashchange', setActiveFromHash);
