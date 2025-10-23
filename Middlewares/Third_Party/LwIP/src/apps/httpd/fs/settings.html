@@ -19,16 +19,15 @@
   <main>
     <div class="header">Bonch-ATS Monitoring — Настройки</div>
 
-      <div class="tabs">
+    <div class="tabs">
       <div class="tab active" data-tab="network">Сеть</div>
       <div class="tab" data-tab="datetime">Дата и время</div>
-        <div class="tab" data-tab="snmp">SNMP</div>
-        <div class="tab" data-tab="creds">Логин</div>
+      <div class="tab" data-tab="snmp">SNMP</div>
     </div>
 
     <!-- Сеть -->
     <div class="card tab-content active" id="network">
-      <form id="network-form" method="get" action="set_network.cgi">
+      <form id="network-form" method="get" action="/set_network.cgi">
         <label for="ip">IP-адрес</label>
         <input id="ip" name="ip" class="input" type="text" placeholder="192.168.0.100">
 
@@ -68,7 +67,7 @@
 
     <!-- SNMP -->
     <div class="card tab-content" id="snmp">
-      <form id="snmp-form" method="get" action="set_snmp.cgi">
+      <form id="snmp-form" method="get" action="/set_snmp.cgi">
         <label for="snmp-read">Пароль (community) на чтение</label>
         <input id="snmp-read" name="snmp-read" class="input" type="text" placeholder="public">
 
@@ -84,22 +83,6 @@
         <div id="status-snmp" class="status"></div>
       </form>
     </div>
-
-      <!-- Логин/пароль -->
-      <div class="card tab-content" id="creds">
-        <form id="creds-form" method="get" action="set_creds.cgi">
-          <label for="login-user">Логин (до 8 символов)</label>
-          <input id="login-user" name="user" class="input" type="text" maxlength="8" placeholder="admin">
-
-          <label for="login-pass">Пароль (до 8 символов)</label>
-          <input id="login-pass" name="pass" class="input" type="text" maxlength="8" placeholder="admin">
-
-          <div style="margin-top:12px;">
-            <button type="submit" class="btn">Сохранить</button>
-          </div>
-          <div id="status-creds" class="status"></div>
-        </form>
-      </div>
   </main>
 
   <script>
@@ -119,8 +102,7 @@
       // формы
       const forms = [
         { id: 'network-form', status: 'status-network' },
-        { id: 'snmp-form', status: 'status-snmp' },
-        { id: 'creds-form', status: 'status-creds' }
+        { id: 'snmp-form', status: 'status-snmp' }
       ];
 
       forms.forEach(f => {
@@ -128,8 +110,8 @@
         const status = document.getElementById(f.status);
         form.addEventListener('submit', ev => {
           ev.preventDefault();
-          const data = new URLSearchParams(new FormData(form)).toString();
-          location.href = form.action + '?' + data;
+          const params = new URLSearchParams(new FormData(form));
+          location.href = form.action + '?' + params.toString();
         });
       });
 
@@ -149,14 +131,14 @@
         if (dateValue) {
           // Простой GET запрос без кодирования
           const dateImg = new Image();
-          dateImg.src = 'set_date.cgi?date=' + dateValue;
+          dateImg.src = '/set_date.cgi?date=' + encodeURIComponent(dateValue);
         }
 
         // Отправляем время отдельным CGI
         if (timeValue) {
           // Простой GET запрос без кодирования
           const timeImg = new Image();
-          timeImg.src = 'set_time.cgi?time=' + timeValue;
+          timeImg.src = '/set_time.cgi?time=' + encodeURIComponent(timeValue);
         }
 
         statusDatetime.textContent = "Дата и время сохранены!";
@@ -197,8 +179,6 @@
           if (readMatch) document.getElementById('snmp-read').value = readMatch[1].trim();
           if (writeMatch) document.getElementById('snmp-write').value = writeMatch[1].trim();
           if (trapMatch) document.getElementById('snmp-trap').value = trapMatch[1].trim();
-
-          // Логин/пароль — не подставляем значения для безопасности
         } catch (err) {
           console.error(err);
         }

@@ -1,5 +1,6 @@
 #include "credentials.h"
 #include <string.h>
+#include <ctype.h>
 #include "main.h"   // там объявлен extern RTC_HandleTypeDef hrtc;
 
 
@@ -50,24 +51,30 @@ static void backup_read_pass(char *pass) {
 void Creds_Init(void) {
     char p[9] = {0};
     backup_read_pass(p);
-    if (p[0] == 0) {
-        creds.username[0] = 0; // username unused
+    /* Validate saved password: must be non-empty and printable ASCII */
+    bool valid = false;
+    if (p[0] != 0) {
+        valid = true;
+        for (int i = 0; i < 8 && p[i] != 0; ++i) {
+            unsigned char c = (unsigned char)p[i];
+            if (!isprint(c)) { valid = false; break; }
+        }
+    }
+    if (!valid) {
         strncpy(creds.password, "admin", MAX_CRED_LEN-1);
         backup_write_pass(creds.password);
     } else {
         strncpy(creds.password, p, MAX_CRED_LEN-1);
         creds.password[MAX_CRED_LEN-1] = 0;
-        creds.username[0] = 0;
     }
 }
 
-bool Creds_CheckLogin(const char *user, const char *pass) {
-    (void)user; // username disabled
-    return (strncmp(pass, creds.password, MAX_CRED_LEN) == 0);
+bool Creds_CheckPassword(const char *pass) {
+    return (pass && strncmp(pass, creds.password, MAX_CRED_LEN) == 0);
 }
 
-void Creds_Update(const char *user, const char *pass) {
-    (void)user; // ignore username, only password used
+void Creds_UpdatePassword(const char *pass) {
+    if (!pass) return;
     strncpy(creds.password, pass, MAX_CRED_LEN-1);
     creds.password[MAX_CRED_LEN-1] = 0;
     backup_write_pass(creds.password);

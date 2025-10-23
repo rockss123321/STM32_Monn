@@ -184,12 +184,87 @@ fs_bytes_left(struct fs_file *file)
 #include <string.h>
 extern volatile uint8_t g_is_authenticated; // флаг из main.c
 
+/* Inline HTML overrides for pages we want to customize without regenerating fsdata.c */
+static const char login_html_override[] =
+  "HTTP/1.1 200 OK\r\n"
+  "Content-Type: text/html; charset=UTF-8\r\n\r\n"
+  "<!DOCTYPE html>\n"
+  "<html lang=\"ru\">\n"
+  "<head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+  "<title>Вход — Bonch-ATS Monitoring</title>\n"
+  "<style>body{font-family:Segoe UI,Tahoma,sans-serif;background:#f5f5f5;color:#333;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}"
+  ".card{background:#fff;padding:30px;border-radius:12px;box-shadow:rgba(0,0,0,.1) -4px 9px 25px -6px;width:320px;box-sizing:border-box;text-align:center}"
+  "h2{color:#ff9900;margin-bottom:20px}.input{width:100%;padding:10px;border-radius:6px;border:0;background:#f5f5f5;color:#333;margin-bottom:14px;font-size:15px;box-sizing:border-box}"
+  ".btn{background:#ff9900;color:#fff;padding:10px;width:100%;border:0;border-radius:8px;cursor:pointer;font-weight:700;transition:background .2s}.btn:hover{background:#e68a00}"
+  ".status{margin-top:10px;color:#999;min-height:20px;text-align:center}</style></head>\n"
+  "<body><div class=\"card\"><h2>BONCH IT</h2>\n"
+  "<form action=\"/login.cgi\" method=\"get\">\n"
+  "<label for=\"pass\" style=\"display:block;margin:6px 0;text-align:left;font-weight:600\">Пароль</label>\n"
+  "<input id=\"pass\" name=\"pass\" type=\"password\" class=\"input\" required>\n"
+  "<button type=\"submit\" class=\"btn\">Войти</button>\n"
+  "<div id=\"status\" class=\"status\"></div>\n"
+  "</form><p style=\"margin-top:10px\">Если возникли вопросы, напишите нам</p>\n"
+  "<a href=\"mailto:info@bonch-it.ru\" style=\"color:#e68a00\">info@bonch-it.ru</a>\n"
+  "</div></body></html>\n";
+
+static const char settings_html_override[] =
+  "HTTP/1.1 200 OK\r\n"
+  "Content-Type: text/html; charset=UTF-8\r\n\r\n"
+  "<!doctype html><html lang=\"ru\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+  "<title>Bonch-ATS Monitoring — Настройки</title><link rel=\"stylesheet\" href=\"style.css\"></head><body>\n"
+  "<nav><a href=\"index.html\">Главная</a><a href=\"event.html\">Журнал</a><a href=\"settings.html#network\" class=\"active\">Настройки</a><a href=\"update.html\">Обновление ПО</a></nav>\n"
+  "<main><div class=\"header\">Bonch-ATS Monitoring — Настройки</div>\n"
+  "<div class=\"tabs\"><a href=\"#network\" class=\"tab active\" data-tab=\"network\">Сеть</a><a href=\"#datetime\" class=\"tab\" data-tab=\"datetime\">Дата и время</a><a href=\"#snmp\" class=\"tab\" data-tab=\"snmp\">SNMP</a><a href=\"#creds\" class=\"tab\" data-tab=\"creds\">Пароль</a></div>\n"
+  "<div class=\"card tab-content active\" id=\"network\">\n"
+  "<form id=\"network-form\" method=\"get\" action=\"set_network.cgi\">\n"
+  "<label for=\"ip\">IP-адрес</label><input id=\"ip\" name=\"ip\" class=\"input\" type=\"text\" placeholder=\"192.168.0.100\">\n"
+  "<label for=\"mask\">Маска сети</label><input id=\"mask\" name=\"mask\" class=\"input\" type=\"text\" placeholder=\"255.255.255.0\">\n"
+  "<label for=\"gateway\">Шлюз (Gateway)</label><input id=\"gateway\" name=\"gateway\" class=\"input\" type=\"text\" placeholder=\"192.168.0.1\">\n"
+  "<label><input id=\"dhcp\" name=\"dhcp\" type=\"checkbox\" value=\"on\"> Использовать DHCP</label>\n"
+  "<div style=\"margin-top:12px;\"><button type=\"submit\" class=\"btn\">Сохранить</button></div><div id=\"status-network\" class=\"status\"></div></form></div>\n"
+  "<div class=\"card tab-content\" id=\"datetime\">\n"
+  "<form id=\"datetime-form\" method=\"get\" action=\"\">\n"
+  "<label for=\"date\">Дата</label><input id=\"date\" name=\"date\" class=\"input\" type=\"date\">\n"
+  "<label for=\"time\">Время</label><input id=\"time\" name=\"time\" class=\"input\" type=\"time\">\n"
+  "<div style=\"margin-top:12px;\"><button type=\"submit\" class=\"btn\">Сохранить дату и время</button></div><div id=\"status-datetime\" class=\"status\"></div></form></div>\n"
+  "<div class=\"card tab-content\" id=\"snmp\">\n"
+  "<form id=\"snmp-form\" method=\"get\" action=\"set_snmp.cgi\">\n"
+  "<label for=\"snmp-read\">Пароль (community) на чтение</label><input id=\"snmp-read\" name=\"snmp-read\" class=\"input\" type=\"text\" placeholder=\"public\">\n"
+  "<label for=\"snmp-write\">Пароль (community) на запись</label><input id=\"snmp-write\" name=\"snmp-write\" class=\"input\" type=\"text\" placeholder=\"private\">\n"
+  "<label for=\"snmp-trap\">Пароль (community) на trap/inform</label><input id=\"snmp-trap\" name=\"snmp-trap\" class=\"input\" type=\"text\" placeholder=\"public\">\n"
+  "<div style=\"margin-top:12px;\"><button type=\"submit\" class=\"btn\">Сохранить</button></div><div id=\"status-snmp\" class=\"status\"></div></form></div>\n"
+  "<div class=\"card tab-content\" id=\"creds\">\n"
+  "<form id=\"creds-form\" method=\"get\" action=\"set_creds.cgi\">\n"
+  "<label for=\"login-pass\">Новый пароль (до 8 символов)</label><input id=\"login-pass\" name=\"pass\" class=\"input\" type=\"password\" maxlength=\"8\" placeholder=\"••••••••\">\n"
+  "<div style=\"margin-top:12px;\"><button type=\"submit\" class=\"btn\">Сохранить</button></div><div id=\"status-creds\" class=\"status\"></div></form></div>\n"
+  "</main>\n"
+  "<script>(function(){const tabs=document.querySelectorAll('.tab');const contents=document.querySelectorAll('.tab-content');function activate(n){tabs.forEach(x=>x.classList.remove('active'));contents.forEach(c=>c.classList.remove('active'));const te=[...tabs].find(t=>t.dataset.tab===n);const pe=document.getElementById(n);if(te)te.classList.add('active');if(pe)pe.classList.add('active');}function sync(){const h=(location.hash||'#network').slice(1);activate(h);}tabs.forEach(t=>t.addEventListener('click',e=>{e.preventDefault();const target=t.getAttribute('href')||('#'+t.dataset.tab);location.hash=target;}));window.addEventListener('hashchange',sync);sync();"
+  "const forms=[{id:'network-form',status:'status-network'},{id:'snmp-form',status:'status-snmp'},{id:'creds-form',status:'status-creds'}];forms.forEach(f=>{const form=document.getElementById(f.id);const st=document.getElementById(f.status);form.addEventListener('submit',ev=>{ev.preventDefault();const data=new URLSearchParams(new FormData(form)).toString();location.href=form.action+'?'+data;});});"
+  "const datetimeForm=document.getElementById('datetime-form');const statusDatetime=document.getElementById('status-datetime');datetimeForm.addEventListener('submit',ev=>{ev.preventDefault();const fd=new FormData(datetimeForm);const d=fd.get('date');const t=fd.get('time');statusDatetime.textContent='Сохранение...';if(d){new Image().src='set_date.cgi?date='+d;}if(t){new Image().src='set_time.cgi?time='+t;}statusDatetime.textContent='Дата и время сохранены!';setTimeout(()=>location.reload(),1000);});"
+  "async function loadSettings(){try{const resp=await fetch('/table.shtml',{cache:'no-store'});if(!resp.ok)throw new Error('HTTP '+resp.status);const html=await resp.text();const ip=html.match(/<!--#netip-->(.*?)<\/td>/s);const mask=html.match(/<!--#netmask-->(.*?)<\/td>/s);const gw=html.match(/<!--#netgw-->(.*?)<\/td>/s);const dhcp=html.match(/<!--#netdhcp-->(.*?)<\/td>/s);if(ip)document.getElementById('ip').placeholder=ip[1].trim();if(mask)document.getElementById('mask').placeholder=mask[1].trim();if(gw)document.getElementById('gateway').placeholder=gw[1].trim();if(dhcp)document.getElementById('dhcp').checked=(dhcp[1].trim()==='on');const d=html.match(/<!--#date-->(.*?)<\/td>/s);const tt=html.match(/<!--#time-->(.*?)<\/td>/s);if(d)document.getElementById('date').value=d[1].trim();if(tt)document.getElementById('time').value=tt[1].trim();}catch(e){console.error(e);}}loadSettings();})();</script>\n"
+  "</body></html>\n";
+
 int fs_open_custom(struct fs_file *file, const char *name)
 {
   if (file == NULL || name == NULL) return 0;
 
-  /* Разрешаем страницы логина и ошибки всегда */
-  if (!strcmp(name, "/login.html") || !strcmp(name, "/login_failed.html")) {
+  /* Отдаём переопределённые версии страниц */
+  if (!strcmp(name, "/login.html")) {
+    file->data = login_html_override;
+    file->len = strlen(login_html_override);
+    file->index = file->len;
+    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
+    return 1;
+  }
+  if (!strcmp(name, "/settings.html")) {
+    file->data = settings_html_override;
+    file->len = strlen(settings_html_override);
+    file->index = file->len;
+    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED;
+    return 1;
+  }
+  /* Разрешаем страницу ошибки всегда */
+  if (!strcmp(name, "/login_failed.html")) {
     return 0; /* обычная отдача */
   }
 
